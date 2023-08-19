@@ -15,8 +15,13 @@ fn entry(env: Env) -> ! {
 
     fold::new(env)
         .collect()
+        .search_path("/lib")
+        .search_path("/lib64")
+        .search_path("/usr/lib/")
         .register(TestMod::new(), segment(0x14))
-        .register(TestMod::new(), section(0x42));
+        .register(TestMod::new(), section(0x42))
+        .build()
+        .load();
 
     exit(Exit::Success);
 }
@@ -35,4 +40,8 @@ impl Module for TestMod {
     }
 }
 
-impl CollectHandler for TestMod {}
+impl CollectHandler for TestMod {
+    fn collect(&mut self, _manifold: &mut fold::manifold::Manifold) {
+        todo!()
+    }
+}

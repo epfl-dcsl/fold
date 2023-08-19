@@ -2,6 +2,7 @@
 
 use core::ffi::CStr;
 
+use crate::env::Env;
 use crate::exit::exit_error;
 use crate::println;
 
@@ -9,10 +10,12 @@ const SELF: &'static [u8] = b"fold";
 
 pub struct Config {
     pub target: &'static CStr,
+    env: Env,
 }
 
 /// Parse command line arguments.
-pub fn parse(args: &[&'static CStr]) -> Config {
+pub fn parse(env: Env) -> Config {
+    let args = &env.args;
     if args.len() == 0 {
         log::error!("No target to execute");
         usage();
@@ -25,7 +28,7 @@ pub fn parse(args: &[&'static CStr]) -> Config {
         exit_error();
     };
 
-    Config { target }
+    Config { target, env }
 }
 
 /// Print help.

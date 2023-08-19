@@ -12,6 +12,7 @@ mod env;
 mod exit;
 mod logging;
 mod arena;
+mod file;
 pub mod manifold;
 pub mod module;
 

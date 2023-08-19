@@ -1,4 +1,26 @@
+use crate::arena::Arena;
 use core::fmt;
+
+// ———————————————————————————————— Manifold ———————————————————————————————— //
+
+/// The manifold is an intermediate representation of all objects composing a program.
+pub struct Manifold {
+    objects: Arena<()>,
+    sections: Arena<()>,
+    segments: Arena<()>,
+    regions: Arena<()>,
+}
+
+impl Manifold {
+    pub(crate) fn new() -> Self {
+        Self {
+            objects: Arena::new(),
+            sections: Arena::new(),
+            segments: Arena::new(),
+            regions: Arena::new(),
+        }
+    }
+}
 
 // ———————————————————————————— Manifold Item ID ———————————————————————————— //
 
