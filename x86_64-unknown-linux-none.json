@@ -1,0 +1,29 @@
+{
+  "arch": "x86_64",
+  "cpu": "x86-64",
+  "code-model": "small",
+  "data-layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+  "dynamic-linking": false,
+  "disable-redzone": true,
+  "is-builtin": false,
+  "linker": "rust-lld",
+  "linker-flavor": "ld.lld",
+  "llvm-target": "x86_64-unknown-linux-musl",
+  "max-atomic-width": 64,
+  "os": "linux",
+  "panic-strategy": "abort",
+  "static-position-independent-executables": false,
+  "relro-level": "full",
+  "stack-probes": {
+    "kind": "inline-or-call",
+    "min-llvm-version-for-inline": [
+      16,
+      0,
+      0
+    ]
+  },
+  "target-family": [
+    "unix"
+  ],
+  "target-pointer-width": "64"
+}

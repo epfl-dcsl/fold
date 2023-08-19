@@ -1,0 +1,24 @@
+[package]
+name = "fold"
+version = "0.1.0"
+edition = "2021"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+log       = { workspace = true }
+hashbrown = { workspace = true }
+plain     = { workspace = true }
+rustix    = { workspace = true }
+goblin    = { version = "0.7.1", default_features = false, features = ["elf64"] }
+linked_list_allocator = "0.10.5"
+
+[workspace.dependencies]
+log       = "0.4.19"
+hashbrown = "0.14.0"
+plain     = "0.2"
+rustix    = { version = "0.38.3", default_features = false, features = ["stdio", "mm", "runtime"] }
