@@ -4,7 +4,7 @@
 extern crate alloc;
 extern crate fold;
 
-use fold::manifold::{section, segment};
+use fold::filters::{section, segment};
 use fold::module::{CollectHandler, Module};
 use fold::{exit, init_logging, Env, Exit};
 

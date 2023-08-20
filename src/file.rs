@@ -1,9 +1,7 @@
 use core::fmt;
 
 use rustix::fd::OwnedFd;
-use rustix::fs;
-use rustix::mm;
-use rustix::path;
+use rustix::{fs, mm, path};
 
 const S_IFMT: u32 = 0xf000;
 const S_IFDIR: u32 = 0x4000;
@@ -11,6 +9,8 @@ const S_IFDIR: u32 = 0x4000;
 pub struct Mapping {
     /// Mapped region, owned by the mapping
     bytes: &'static [u8],
+    /// File descriptor, if backed by a file
+    fd: Option<OwnedFd>,
 }
 
 pub struct MappingMut {
@@ -19,9 +19,10 @@ pub struct MappingMut {
 }
 
 impl Mapping {
-    pub(crate) unsafe fn new(ptr: *const u8, len: usize) -> Self {
+    pub(crate) unsafe fn new(ptr: *const u8, len: usize, fd: Option<OwnedFd>) -> Self {
         Self {
             bytes: core::slice::from_raw_parts(ptr, len),
+            fd,
         }
     }
 
@@ -61,7 +62,7 @@ pub fn open_file_ro<P: path::Arg>(path: P) -> Result<OwnedFd, ()> {
     }
 }
 
-pub fn map_file(fd: &OwnedFd) -> Mapping {
+pub fn map_file(fd: OwnedFd) -> Mapping {
     let stat = fs::fstat(&fd).expect("Could not retrieve file size");
     let len = stat.st_size as usize;
 
@@ -77,7 +78,7 @@ pub fn map_file(fd: &OwnedFd) -> Mapping {
         )
         .expect("mmap failed");
 
-        let mapping = Mapping::new(ptr as *mut u8, len);
+        let mapping = Mapping::new(ptr as *mut u8, len, Some(fd));
         log::trace!("{:?}", mapping);
         mapping
     }

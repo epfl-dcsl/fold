@@ -6,15 +6,18 @@ extern crate alloc;
 use core::panic::PanicInfo;
 
 mod allocator;
+mod arena;
 mod cli;
 mod driver;
+pub mod elf;
 mod env;
 mod exit;
-mod logging;
-mod arena;
 mod file;
+pub mod filters;
+mod logging;
 pub mod manifold;
 pub mod module;
+mod object;
 
 pub use driver::new;
 pub use env::Env;

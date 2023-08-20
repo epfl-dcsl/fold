@@ -1,15 +1,15 @@
+use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 use crate::arena::Arena;
-use crate::cli;
 use crate::cli::Config;
 use crate::env::Env;
-use crate::manifold::{ItemFilter, Manifold};
+use crate::filters::ItemFilter;
+use crate::manifold::Manifold;
 use crate::module::CollectHandler;
-
-use rustix::path::Arg;
+use crate::{cli, file};
 
 // —————————————————————————————— Fold Driver ——————————————————————————————— //
 
@@ -100,5 +100,8 @@ impl Fold<Ready> {
         let s = &mut self.s;
         let target = s.config.target;
         log::info!("Target: {:?}", target);
+        let file_fd = file::open_file_ro(target.to_bytes()).expect("Target is not a file");
+        let file = file::map_file(file_fd);
+        s.manifold.add_elf_file(file, target.to_owned());
     }
 }
