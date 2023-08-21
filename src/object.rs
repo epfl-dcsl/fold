@@ -96,37 +96,93 @@ impl Object {
     }
 }
 
+// ———————————————————————————————— Segments ———————————————————————————————— //
+
+pub struct Segment {
+    /// The mapping backing this segment.
+    pub mapping: Arc<Mapping>,
+    /// The object containing this segment.
+    pub obj: Handle<Object>,
+    /// The type of the program header (ph_type).
+    pub tag: u32,
+    /// Segment flags.
+    pub flags: u32,
+    /// Offset of the segment in the file.
+    pub offset: usize,
+    /// Virtual address of the segment.
+    pub vaddr: usize,
+    /// Physical address of the segment.
+    pub paddr: usize,
+    /// Size of the segment in the file.
+    pub file_size: usize,
+    /// Size of the segment in memory.
+    pub mem_size: usize,
+    /// Required alignment for the section.
+    pub align: usize,
+}
+
+impl Segment {
+    pub(crate) fn new(
+        header: &ProgramHeader,
+        obj_idx: Handle<Object>,
+        manifold: &Manifold,
+    ) -> Self {
+        let obj = &manifold[obj_idx];
+        let mapping = &obj.mapping;
+
+        Self {
+            mapping: mapping.clone(),
+            obj: obj_idx,
+            tag: header.p_type,
+            flags: header.p_flags,
+            offset: header.p_offset as usize,
+            vaddr: header.p_vaddr as usize,
+            paddr: header.p_paddr as usize,
+            file_size: header.p_filesz as usize,
+            mem_size: header.p_memsz as usize,
+            align: header.p_align as usize,
+        }
+    }
+}
+
 // ———————————————————————————————— Sections ———————————————————————————————— //
 
 pub struct Section {
-    mapping: Arc<Mapping>,
+    /// The mapping backing this section.
+    pub mapping: Arc<Mapping>,
+    /// The object containing this section.
+    pub obj: Handle<Object>,
     /// Offset to the name of the section in the object's .shstrtab section.
     /// TODO: store name directly.
-    name: u32,
+    pub name: u32,
     /// The type of the section (sh_type).
-    tag: u32,
+    pub tag: u32,
     /// Section flags.
-    flags: usize,
+    pub flags: usize,
     /// Virtual address once loaded, for loadable sections.
-    addr: usize,
+    pub addr: usize,
     /// Offset of the section in the file.
-    offset: usize,
+    pub offset: usize,
     /// Size of the section in the file.
-    size: usize,
+    pub size: usize,
     /// Required alignment.
-    alig: usize,
+    pub alig: usize,
     /// Link to an associated section.
     /// TODO: store a handle instead
-    link: u32,
+    pub link: u32,
     /// Extra information about the section.
-    info: u32,
+    pub info: u32,
     /// Size of the elements contained in the section, if applicable.
-    entity_size: usize,
+    pub entity_size: usize,
 }
 
 impl Section {
-    pub fn new(header: &SectionHeader, obj: Handle<Object>, manifold: &Manifold) -> Self {
-        let obj = &manifold[obj];
+    pub(crate) fn new(
+        header: &SectionHeader,
+        obj_idx: Handle<Object>,
+        manifold: &Manifold,
+    ) -> Self {
+        let obj = &manifold[obj_idx];
         let mapping = &obj.mapping;
 
         // TODO: check alignment:
@@ -136,6 +192,7 @@ impl Section {
 
         Self {
             mapping: mapping.clone(),
+            obj: obj_idx,
             name: header.sh_name,
             tag: header.sh_type,
             flags: header.sh_flags as usize,

@@ -4,16 +4,16 @@ use core::ops::Index;
 
 use crate::arena::{Arena, Handle};
 use crate::file::Mapping;
-use crate::object::{Object, Section };
+use crate::object::{Object, Section, Segment};
 
 // ———————————————————————————————— Manifold ———————————————————————————————— //
 
 /// The manifold is an intermediate representation of all objects composing a program.
 pub struct Manifold {
-    objects: Arena<Object>,
-    sections: Arena<()>,
-    segments: Arena<()>,
-    regions: Arena<()>,
+    pub objects: Arena<Object>,
+    pub sections: Arena<Section>,
+    pub segments: Arena<Segment>,
+    pub regions: Arena<()>,
 }
 
 impl Manifold {
@@ -30,10 +30,12 @@ impl Manifold {
         let file = Arc::new(file);
         let obj = Object::new(file.clone(), path);
         let obj_idx = self.objects.push(obj);
-        let obj = &self[obj_idx];
+        let obj = &self.objects[obj_idx];
 
         for segment in obj.program_headers() {
             log::info!("{segment:?}");
+            let segment = Segment::new(segment, obj_idx, &self);
+            self.segments.push(segment);
         }
         for section in obj.section_headers() {
             log::info!("{section:?}");
