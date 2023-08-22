@@ -1,5 +1,6 @@
 use alloc::ffi::CString;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 use core::ops::Index;
 
 use crate::arena::{Arena, Handle};
@@ -32,15 +33,24 @@ impl Manifold {
         let obj_idx = self.objects.push(obj);
         let obj = &self.objects[obj_idx];
 
+        let mut segments = Vec::with_capacity(obj.e_phnum as usize);
         for segment in obj.program_headers() {
-            log::info!("{segment:?}");
             let segment = Segment::new(segment, obj_idx, &self);
-            self.segments.push(segment);
+            let idx = self.segments.push(segment);
+            segments.push(idx);
         }
+
+        let mut sections = Vec::with_capacity(obj.e_shnum as usize);
         for section in obj.section_headers() {
-            log::info!("{section:?}");
-            Section::new(section, obj_idx, &self);
+            let section = Section::new(section, obj_idx, &self);
+            let idx = self.sections.push(section);
+            sections.push(idx);
         }
+
+        // Initialize segment and section indexes.
+        let obj = &mut self.objects[obj_idx];
+        obj.segments = segments;
+        obj.sections = sections;
     }
 }
 
@@ -54,3 +64,18 @@ impl Index<Handle<Object>> for Manifold {
     }
 }
 
+impl Index<Handle<Segment>> for Manifold {
+    type Output = Segment;
+
+    fn index(&self, handle: Handle<Segment>) -> &Self::Output {
+        &self.segments[handle]
+    }
+}
+
+impl Index<Handle<Section>> for Manifold {
+    type Output = Section;
+
+    fn index(&self, handle: Handle<Section>) -> &Self::Output {
+        &self.sections[handle]
+    }
+}

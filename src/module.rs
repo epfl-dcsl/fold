@@ -1,9 +1,35 @@
+use crate::arena::Handle;
 use crate::manifold::Manifold;
+use crate::object::{Object, Section, Segment};
 
 pub trait Module {
     fn name(&self) -> &'static str;
-}
 
-pub trait CollectHandler: Module {
-    fn collect(&mut self, manifodl: &mut Manifold);
+    fn process_object(&mut self, obj: Handle<Object>, manifold: &mut Manifold) {
+        // Silence warnings
+        let _ = obj;
+        let _ = manifold;
+        log::warn!(
+            "Module '{}' does not implement 'process_object'",
+            self.name()
+        );
+    }
+
+    fn process_segment(&mut self, segment: Handle<Segment>, manifold: &mut Manifold) {
+        // Silence warnings
+        let _ = manifold;
+        log::warn!(
+            "Module '{}' does not implement 'process_segment'",
+            self.name()
+        );
+    }
+
+    fn process_section(&mut self, section: Handle<Section>, manifold: &mut Manifold) {
+        // Silence warnings
+        let _ = manifold;
+        log::warn!(
+            "Module '{}' does not implement 'process_section'",
+            self.name()
+        );
+    }
 }

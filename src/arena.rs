@@ -24,14 +24,25 @@ impl<T> Arena<T> {
         }
     }
 
-    pub fn enumerate(&self) -> HandleIter<'_, T> {
-        HandleIter {
+    pub fn get(&self, handle: Handle<T>) -> Option<&T> {
+        self.store.get(handle.idx)
+    }
+
+    /// Retur an handle iterator.
+    /// The iterator does not borrow self, but does not guarantee handle validity. Therefore,
+    /// handles returned by this handler can be invalid.
+    pub(crate) fn handle_generator(&self) -> HandleIter<T> {
+        HandleIter::new()
+    }
+
+    pub fn enumerate(&self) -> EnumHandleIter<'_, T> {
+        EnumHandleIter {
             inner: self.store.iter().enumerate(),
         }
     }
 
-    pub fn enumerate_mut(&mut self) -> HandleIterMut<'_, T> {
-        HandleIterMut {
+    pub fn enumerate_mut(&mut self) -> EnumHandleIterMut<'_, T> {
+        EnumHandleIterMut {
             inner: self.store.iter_mut().enumerate(),
         }
     }
@@ -110,11 +121,38 @@ impl<T> Key<T> for Handle<T> {
 
 // ——————————————————————————————— Iterators ———————————————————————————————— //
 
-pub struct HandleIter<'a, T> {
+pub struct HandleIter<T> {
+    idx: usize,
+    _marker: PhantomData<T>,
+}
+
+impl<T> HandleIter<T> {
+    fn new() -> Self {
+        Self {
+            idx: 0,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T> Iterator for HandleIter<T> {
+    type Item = Handle<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let idx = self.idx;
+        self.idx += 1;
+        Some(Handle {
+            idx,
+            _marker: PhantomData,
+        })
+    }
+}
+
+pub struct EnumHandleIter<'a, T> {
     inner: Enumerate<core::slice::Iter<'a, T>>,
 }
 
-impl<'a, T> Iterator for HandleIter<'a, T> {
+impl<'a, T> Iterator for EnumHandleIter<'a, T> {
     type Item = (Handle<T>, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -130,11 +168,11 @@ impl<'a, T> Iterator for HandleIter<'a, T> {
     }
 }
 
-pub struct HandleIterMut<'a, T> {
+pub struct EnumHandleIterMut<'a, T> {
     inner: Enumerate<core::slice::IterMut<'a, T>>,
 }
 
-impl<'a, T> Iterator for HandleIterMut<'a, T> {
+impl<'a, T> Iterator for EnumHandleIterMut<'a, T> {
     type Item = (Handle<T>, &'a mut T);
 
     fn next(&mut self) -> Option<Self::Item> {

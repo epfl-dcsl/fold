@@ -7,14 +7,24 @@ pub enum ItemFilter {
     Section(SectionID, ObjectFilter),
 }
 
+impl ItemFilter {
+    pub fn object_filter(self) -> ObjectFilter {
+        match self {
+            ItemFilter::Object(f) => f,
+            ItemFilter::Segment(_, f) => f,
+            ItemFilter::Section(_, f) => f,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ObjectFilter {
     /// A mask to ignore filters on OS ABIs or elf types.
-    mask: ObjectMask,
+    pub mask: ObjectMask,
     /// OS ABI
-    os_abi: u8,
+    pub os_abi: u8,
     /// Elf type
-    elf_type: u16,
+    pub elf_type: u16,
 }
 
 /// A mask to filter matching objects.
@@ -33,13 +43,13 @@ pub enum ObjectMask {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SegmentID {
     /// Segment type, correspond to ph_type.
-    segment_type: u32,
+    pub tag: u32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SectionID {
     /// Section type, correspond to sh_type.
-    section_type: u32,
+    pub tag: u32,
 }
 
 // ———————————————————————————————— Helpers ————————————————————————————————— //
@@ -54,13 +64,13 @@ pub fn section(section_type: u32) -> SectionID {
 
 impl From<u32> for SegmentID {
     fn from(segment_type: u32) -> Self {
-        Self { segment_type }
+        Self { tag: segment_type }
     }
 }
 
 impl From<u32> for SectionID {
     fn from(section_type: u32) -> Self {
-        Self { section_type }
+        Self { tag: section_type }
     }
 }
 
@@ -121,12 +131,12 @@ impl fmt::Debug for ObjectFilter {
 
 impl fmt::Debug for SegmentID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Segment(0x{:x})", self.segment_type)
+        write!(f, "Segment(0x{:x})", self.tag)
     }
 }
 
 impl fmt::Debug for SectionID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Section(0x{:x})", self.section_type)
+        write!(f, "Section(0x{:x})", self.tag)
     }
 }

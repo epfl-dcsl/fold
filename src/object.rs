@@ -1,10 +1,12 @@
 use alloc::ffi::CString;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 
 use crate::arena::Handle;
 use crate::elf::{cst, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
 use crate::exit::exit_error;
 use crate::file::Mapping;
+use crate::filters::ObjectFilter;
 use crate::manifold::Manifold;
 
 // ———————————————————————————————— Objects ————————————————————————————————— //
@@ -14,25 +16,38 @@ pub struct Object {
     path: CString,
     mapping: Arc<Mapping>,
 
+    pub(crate) sections: Vec<Handle<Section>>,
+    pub(crate) segments: Vec<Handle<Segment>>,
+
+    /// OS ABI
+    os_abi: u8,
+    /// Elf type
+    elf_type: u16,
     /// Offset of the section header table.
     e_shoff: usize,
     /// Size of the entries in the section header table.
     e_shentsize: u16,
     /// Number of entries in the section header table.
-    e_shnum: u16,
+    pub(crate) e_shnum: u16,
     /// Offset of the program header table.
     e_phoff: usize,
     /// Size of entries in the program header table.
     e_phentsize: u16,
     /// Number of entries in the program header table.
-    e_phnum: u16,
+    pub(crate) e_phnum: u16,
 }
 
 impl Object {
     pub fn new(file: Arc<Mapping>, path: CString) -> Self {
         let hdr = as_header(file.bytes());
         let obj = Self {
+            // Completed by the Manifold
+            sections: Vec::new(),
+            // Completed by the Manifold
+            segments: Vec::new(),
             path,
+            os_abi: hdr.e_ident[0],
+            elf_type: hdr.e_type,
             e_shoff: hdr.e_shoff as usize,
             e_shentsize: hdr.e_shentsize,
             e_shnum: hdr.e_shnum,
@@ -66,6 +81,17 @@ impl Object {
         }
 
         Ok(())
+    }
+
+    pub(crate) fn matches(&self, filter: ObjectFilter) -> bool {
+        match filter.mask {
+            crate::filters::ObjectMask::Strict => {
+                filter.elf_type == self.elf_type && filter.os_abi == self.os_abi
+            }
+            crate::filters::ObjectMask::ElfType => filter.elf_type == self.elf_type,
+            crate::filters::ObjectMask::OsAbi => filter.os_abi == self.os_abi,
+            crate::filters::ObjectMask::Any => true,
+        }
     }
 
     pub fn raw_slice(&self, offset: usize, len: usize) -> &[u8] {

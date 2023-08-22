@@ -2,7 +2,6 @@
 //!
 //! Re-export goblin's data structures with saner paths, and offers some elf utilities.
 
-use core::ffi::CStr;
 use core::iter::Iterator;
 use core::marker::PhantomData;
 
@@ -15,8 +14,6 @@ pub use goblin::elf64::reloc::{Rel, Rela};
 pub use goblin::elf64::section_header::SectionHeader;
 pub use goblin::elf64::sym::Sym;
 use plain::Plain;
-
-use crate::exit::exit_error;
 
 /// Re-export most of Goblin constants
 pub mod cst {

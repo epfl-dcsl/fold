@@ -10,7 +10,7 @@ pub struct Mapping {
     /// Mapped region, owned by the mapping
     bytes: &'static [u8],
     /// File descriptor, if backed by a file
-    fd: Option<OwnedFd>,
+    _fd: Option<OwnedFd>,
 }
 
 pub struct MappingMut {
@@ -22,27 +22,11 @@ impl Mapping {
     pub(crate) unsafe fn new(ptr: *const u8, len: usize, fd: Option<OwnedFd>) -> Self {
         Self {
             bytes: core::slice::from_raw_parts(ptr, len),
-            fd,
+            _fd: fd,
         }
     }
 
     pub fn bytes(&self) -> &[u8] {
-        self.bytes
-    }
-}
-
-impl MappingMut {
-    pub(crate) unsafe fn new(ptr: *mut u8, len: usize) -> Self {
-        Self {
-            bytes: core::slice::from_raw_parts_mut(ptr, len),
-        }
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        self.bytes
-    }
-
-    pub fn bytes_mut(&mut self) -> &mut [u8] {
         self.bytes
     }
 }
