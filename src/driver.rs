@@ -6,9 +6,9 @@ use alloc::vec::Vec;
 use crate::arena::{Arena, Handle};
 use crate::cli::Config;
 use crate::env::Env;
-use crate::filters::{self, ItemFilter};
+use crate::filters::ItemFilter;
 use crate::manifold::Manifold;
-use crate::module::{CollectHandler, Module};
+use crate::module::Module;
 use crate::{cli, file, Object};
 
 type ModuleRef = Box<dyn Module>;
@@ -54,7 +54,7 @@ impl Fold {
     }
 
     /// Register a module for the current phase.
-    pub fn register<I>(mut self, module: impl CollectHandler + 'static, item: I) -> Self
+    pub fn register<I>(mut self, module: impl Module + 'static, item: I) -> Self
     where
         I: Into<ItemFilter>,
     {

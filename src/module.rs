@@ -17,6 +17,7 @@ pub trait Module {
 
     fn process_segment(&mut self, segment: Handle<Segment>, manifold: &mut Manifold) {
         // Silence warnings
+        let _ = segment;
         let _ = manifold;
         log::warn!(
             "Module '{}' does not implement 'process_segment'",
@@ -26,6 +27,7 @@ pub trait Module {
 
     fn process_section(&mut self, section: Handle<Section>, manifold: &mut Manifold) {
         // Silence warnings
+        let _ = section;
         let _ = manifold;
         log::warn!(
             "Module '{}' does not implement 'process_section'",

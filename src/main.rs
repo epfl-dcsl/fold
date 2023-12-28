@@ -6,7 +6,7 @@ extern crate fold;
 
 use fold::elf::cst::PT_LOAD;
 use fold::filters::{section, segment, ObjectFilter};
-use fold::module::{CollectHandler, Module};
+use fold::module::Module;
 use fold::{exit, init_logging, Env, Exit, Handle, Object, Section, Segment};
 
 fold::entry!(entry);
