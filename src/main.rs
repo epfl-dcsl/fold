@@ -5,9 +5,9 @@ extern crate alloc;
 extern crate fold;
 
 use fold::elf::cst::PT_LOAD;
-use fold::filters::{section, segment, ObjectFilter};
+use fold::filters::{segment, ObjectFilter};
 use fold::module::Module;
-use fold::{exit, init_logging, Env, Exit, Handle, Object, Section, Segment};
+use fold::{exit, init_logging, Env, Exit, Handle, Object, Segment};
 
 fold::entry!(entry);
 
@@ -19,47 +19,57 @@ fn entry(env: Env) -> ! {
         .search_path("/lib64")
         .search_path("/usr/lib/")
         .phase("collect")
-        .register(TestMod::new(), ObjectFilter::any())
-        .register(TestMod::new(), segment(PT_LOAD))
-        .register(TestMod::new(), section(0x42))
+        .register(SysvCollector::new(), ObjectFilter::any())
+        .phase("load")
+        .register(SysvLoader::new(), segment(PT_LOAD))
         .run();
 
     exit(Exit::Success);
 }
 
-struct TestMod {}
+/// System V dependency collector.
+///
+/// Collects dynamic dependencies recursively.
+struct SysvCollector {}
 
-impl TestMod {
+impl SysvCollector {
     fn new() -> Self {
         Self {}
     }
 }
 
-impl Module for TestMod {
+impl Module for SysvCollector {
     fn name(&self) -> &'static str {
-        "testmod"
+        "sysv-collector"
     }
 
     fn process_object(&mut self, obj: Handle<Object>, manifold: &mut fold::manifold::Manifold) {
         let obj = &manifold[obj];
-        log::info!("Processing '{}'", obj.display_path());
+        log::info!("Processing '{}' (todo)", obj.display_path());
+    }
+}
+
+/// System V loader.
+///
+/// Loads loadable segments in memory.
+struct SysvLoader {}
+
+impl SysvLoader {
+    fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Module for SysvLoader {
+    fn name(&self) -> &'static str {
+        "sysv-loader"
     }
 
     fn process_segment(
         &mut self,
-        segment: Handle<Segment>,
-        manifold: &mut fold::manifold::Manifold,
+        _segment: Handle<Segment>,
+        _manifold: &mut fold::manifold::Manifold,
     ) {
-        let seg = &manifold[segment];
-        log::info!("Processing segment with tag 0x{:x}", seg.tag);
-    }
-
-    fn process_section(
-        &mut self,
-        section: Handle<Section>,
-        manifold: &mut fold::manifold::Manifold,
-    ) {
-        let sec = &manifold[section];
-        log::info!("Processing section with tag 0x{:x}", sec.tag);
+        log::info!("Loading segment...");
     }
 }
