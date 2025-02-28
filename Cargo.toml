@@ -21,4 +21,4 @@ linked_list_allocator = "0.10.5"
 log       = "0.4.19"
 hashbrown = "0.14.0"
 plain     = "0.2"
-rustix    = { version = "0.38.3", default_features = false, features = ["stdio", "mm", "runtime"] }
+rustix    = { version = "0.38.3", default_features = false, features = ["stdio", "mm", "runtime", "fs"] }
