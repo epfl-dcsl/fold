@@ -1,0 +1,23 @@
+root_dir  := justfile_directory()
+linker    := root_dir + "/target/x86_64-unknown-linux-musl/debug/fold"
+
+programs:
+	# hello
+	nasm -f elf64 hello.asm
+	ld hello.o -o hello
+
+	# hello-pie
+	nasm -f elf64 hello-pie.asm
+	ld -pie --dynamic-linker {{linker}} hello-pie.o -o hello-pie
+
+	# hello-mov-pie
+	nasm -f elf64 hello-mov-pie.asm
+	ld -pie --dynamic-linker {{linker}} hello-mov-pie.o -o hello-mov-pie
+
+	# hello-dl
+	nasm -f elf64 hello-dl.asm
+	nasm -f elf64 msg.asm
+	ld -shared msg.o -o libmsg.so
+	ld -rpath {{root_dir}} -pie --dynamic-linker {{linker}} hello-dl.o libmsg.so -o hello-dl
+
+# vim: set ft=make :

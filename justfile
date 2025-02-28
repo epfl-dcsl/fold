@@ -9,6 +9,7 @@ run:
 
 build:
 	cargo +nightly build --target {{target}} -Z build-std=core,alloc
+	@just --justfile samples/justfile
 
 check:
 	cargo +nightly check --target {{target}} -Z build-std=core,alloc
