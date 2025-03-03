@@ -53,9 +53,5 @@ fn find_target(args: &[&'static CStr]) -> Option<&'static CStr> {
     }
 
     // Otherwise, we are invoked directly, search forthe target
-    for arg in &args[1..] {
-        return Some(*arg);
-    }
-
-    None
+    args.get(1).copied()
 }
