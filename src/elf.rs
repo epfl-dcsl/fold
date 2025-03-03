@@ -107,14 +107,14 @@ where
             return None;
         }
 
-        let bytes = &self.raw[idx..(idx + self.item_size as usize)];
+        let bytes = &self.raw[idx..(idx + self.item_size)];
         let item = T::from_bytes(bytes).unwrap();
-        self.idx += self.item_size as usize;
+        self.idx += self.item_size;
         Some(item)
     }
 }
 
-impl<'a, T> Clone for ElfItemIterator<'a, T> {
+impl<T> Clone for ElfItemIterator<'_, T> {
     fn clone(&self) -> Self {
         Self {
             raw: self.raw,

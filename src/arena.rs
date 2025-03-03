@@ -10,6 +10,12 @@ pub struct Arena<T> {
     store: Vec<T>,
 }
 
+impl<T> Default for Arena<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> Arena<T> {
     pub fn new() -> Self {
         Self { store: Vec::new() }
@@ -97,12 +103,7 @@ where
 }
 
 impl<T> Clone for Handle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            idx: self.idx,
-            _marker: PhantomData,
-        }
-    }
+    fn clone(&self) -> Self { *self }
 }
 
 impl<T> Copy for Handle<T> {}

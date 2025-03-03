@@ -6,7 +6,7 @@ use crate::env::Env;
 use crate::exit::exit_error;
 use crate::println;
 
-const SELF: &'static [u8] = b"fold";
+const SELF: &[u8] = b"fold";
 
 pub struct Config {
     pub target: &'static CStr,
@@ -16,7 +16,7 @@ pub struct Config {
 /// Parse command line arguments.
 pub fn parse(env: Env) -> Config {
     let args = &env.args;
-    if args.len() == 0 {
+    if args.is_empty() {
         log::error!("No target to execute");
         usage();
         exit_error();
@@ -39,7 +39,7 @@ fn usage() {
 
 /// Find the program to load.
 fn find_target(args: &[&'static CStr]) -> Option<&'static CStr> {
-    assert!(args.len() > 0);
+    assert!(!args.is_empty());
 
     // If arg 0 is not self, then it is the target
     let bytes = args[0].to_bytes();

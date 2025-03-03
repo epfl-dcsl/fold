@@ -35,14 +35,14 @@ impl Manifold {
 
         let mut segments = Vec::with_capacity(obj.e_phnum as usize);
         for segment in obj.program_headers() {
-            let segment = Segment::new(segment, obj_idx, &self);
+            let segment = Segment::new(segment, obj_idx, self);
             let idx = self.segments.push(segment);
             segments.push(idx);
         }
 
         let mut sections = Vec::with_capacity(obj.e_shnum as usize);
         for section in obj.section_headers() {
-            let section = Section::new(section, obj_idx, &self);
+            let section = Section::new(section, obj_idx, self);
             let idx = self.sections.push(section);
             sections.push(idx);
         }

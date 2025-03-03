@@ -58,10 +58,7 @@ impl Object {
         };
 
         if let Err(err) = obj.validate() {
-            let path = match obj.path.to_str() {
-                Ok(s) => s,
-                Err(_) => "<path is not utf-8>",
-            };
+            let path = obj.path.to_str().unwrap_or("<path is not utf-8>");
             log::error!("{} for file {}", err, path);
             exit_error();
         }
@@ -99,7 +96,7 @@ impl Object {
     }
 
     pub fn header(&self) -> &ElfHeader {
-        as_header(&self.raw())
+        as_header(self.raw())
     }
 
     pub fn display_path(&self) -> &str {
