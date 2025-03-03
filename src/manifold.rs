@@ -27,7 +27,7 @@ impl Manifold {
         }
     }
 
-    pub(crate) fn add_elf_file(&mut self, file: Mapping, path: CString) {
+    pub(crate) fn add_elf_file(&mut self, file: Mapping, path: CString) -> Handle<Object> {
         let file = Arc::new(file);
         let obj = Object::new(file.clone(), path);
         let obj_idx = self.objects.push(obj);
@@ -51,6 +51,8 @@ impl Manifold {
         let obj = &mut self.objects[obj_idx];
         obj.segments = segments;
         obj.sections = sections;
+
+        obj_idx
     }
 }
 

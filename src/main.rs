@@ -13,7 +13,7 @@ use fold::{exit, init_logging, Env, Exit};
 fold::entry!(entry);
 
 fn entry(env: Env) -> ! {
-    init_logging(log::LevelFilter::Debug);
+    init_logging(log::LevelFilter::Trace);
 
     fold::new(env)
         .search_path("/lib")
