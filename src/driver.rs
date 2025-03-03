@@ -94,9 +94,9 @@ impl Fold {
         }
     }
 
+    /// Applies the modules of the phase to every objects.
     fn drive_phase(phase: &mut Phase, manifold: &mut Manifold) {
-        let mut handles = manifold.objects.handle_generator();
-        while let Some(handle) = handles.next() {
+        for handle in manifold.objects.handle_generator() {
             if manifold.objects.get(handle).is_none() {
                 // We processed all the objects
                 break;
@@ -106,6 +106,7 @@ impl Fold {
         }
     }
 
+    /// Applies all modules to an object.
     fn apply_modules(obj: Handle<Object>, phase: &mut Phase, manifold: &mut Manifold) {
         for (filter, idx) in &phase.filters {
             let module = &mut phase.modules[*idx];
@@ -120,6 +121,7 @@ impl Fold {
                     module.process_object(obj, manifold);
                 }
                 ItemFilter::Segment(segment, _) => {
+                    // *cries in functional programming, but borrow checker is angry*
                     let mut idx = 0;
                     while let Some(handle) = manifold[obj].segments.get(idx) {
                         idx += 1;
