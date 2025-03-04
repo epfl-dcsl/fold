@@ -1,11 +1,33 @@
-use crate::{file, manifold::Manifold, module::Module, Handle, Object};
-use alloc::{ffi::CString, format, vec::Vec};
-use core::{ffi::CStr, mem};
+use alloc::{borrow::ToOwned, ffi::CString, format, vec::Vec};
+use core::{ffi::CStr, fmt::Debug, mem};
 use goblin::elf::{
     dynamic::{DT_NEEDED, DT_STRTAB},
     section_header::SHT_DYNAMIC,
 };
-use log::{info, trace};
+use log::trace;
+
+use crate::{file, manifold::Manifold, module::Module, Handle, Object};
+
+#[derive(Clone)]
+pub struct SysvCollectorEntry {
+    pub name: CString,
+    pub obj: Handle<Object>,
+}
+
+impl Debug for SysvCollectorEntry {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SysvCollectorEntry")
+            .field("name", &self.name.to_string_lossy())
+            .field("obj", &"<handle>".to_owned())
+            .finish()
+    }
+}
+
+pub struct SysvCollectorResult {
+    pub entries: Vec<SysvCollectorEntry>,
+}
+
+pub const SYSV_COLLECTOR_RESULT_KEY: &str = "sysv_collector";
 
 pub struct SysvCollector {}
 
@@ -57,7 +79,7 @@ impl Module for SysvCollector {
             let mut deps = Vec::new();
             let obj = &manifold[obj];
 
-            trace!("[{}] Collecting", obj.display_path());
+            trace!("[{}] Collecting from obj", obj.display_path());
 
             for sec in obj.sections.iter() {
                 let sec: &crate::Section = &manifold.sections[*sec];
@@ -91,16 +113,19 @@ impl Module for SysvCollector {
             deps
         }
 
-        let mut deps = Vec::new();
+        let mut deps: Vec<SysvCollectorEntry> =
+            match manifold.get_shared::<SysvCollectorResult>(SYSV_COLLECTOR_RESULT_KEY) {
+                Some(scr) => scr.entries.clone(),
+                None => Vec::new(),
+            };
+
         let mut queue = Vec::new();
 
         queue.extend(read_deps(obj, manifold));
 
         while let Some(filename) = queue.pop() {
-            if deps.contains(&filename) {
+            if deps.iter().any(|e| e.name == filename) {
                 continue;
-            } else {
-                deps.push(filename.clone());
             }
 
             let file_fd = file::open_file_ro(
@@ -114,9 +139,17 @@ impl Module for SysvCollector {
             let file = file::map_file(file_fd);
             let obj = manifold.add_elf_file(file, filename.clone());
 
+            deps.push(SysvCollectorEntry {
+                name: filename,
+                obj,
+            });
+
             queue.extend(read_deps(obj, manifold));
         }
 
-        info!("Found dependencies: {:#?}", read_deps(obj, manifold));
+        manifold.add_shared(
+            SYSV_COLLECTOR_RESULT_KEY,
+            SysvCollectorResult { entries: deps },
+        );
     }
 }

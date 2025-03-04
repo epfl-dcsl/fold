@@ -1,4 +1,9 @@
-use crate::{manifold::Manifold, module::Module, Handle, Segment};
+use crate::{
+    manifold::Manifold,
+    module::Module,
+    sysv::collector::{SysvCollectorResult, SYSV_COLLECTOR_RESULT_KEY},
+    Handle, Segment,
+};
 
 pub struct SysvLoader {}
 
@@ -19,7 +24,12 @@ impl Module for SysvLoader {
         "sysv-loader"
     }
 
-    fn process_segment(&mut self, _segment: Handle<Segment>, _manifold: &mut Manifold) {
+    fn process_segment(&mut self, _segment: Handle<Segment>, fold: &mut Manifold) {
         log::info!("Loading segment...");
+        let deps: &SysvCollectorResult = fold.get_shared(SYSV_COLLECTOR_RESULT_KEY).unwrap();
+
+        for d in &deps.entries {
+            log::info!("Loading deps {}", d.name.to_str().unwrap());
+        }
     }
 }

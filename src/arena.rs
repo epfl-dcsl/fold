@@ -103,7 +103,9 @@ where
 }
 
 impl<T> Clone for Handle<T> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<T> Copy for Handle<T> {}

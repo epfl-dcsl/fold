@@ -26,6 +26,17 @@ macro_rules! println {
     }
 }
 
+#[macro_export]
+macro_rules! dbg {
+    ($arg:expr) => {
+        {
+            use ::core::fmt::Write;
+            ::core::writeln!($crate::logging::Stdout {}, "{:#?}", $arg).unwrap();
+            $arg
+        }
+    }
+}
+
 // ————————————————————————————————— Logger ————————————————————————————————— //
 
 struct Logger {}
