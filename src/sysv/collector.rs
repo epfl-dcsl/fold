@@ -130,7 +130,7 @@ impl Module for SysvCollector {
 
             let file_fd = file::open_file_ro(
                 format!(
-                    "/home/ludovic/Desktop/epfl/cs498/dynamic-linker-project/samples/{}",
+                    "PATH-TO/dynamic-linker-project/samples/{}",
                     filename.to_str().unwrap()
                 )
                 .as_str(),

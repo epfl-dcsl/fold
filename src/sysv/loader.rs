@@ -1,9 +1,9 @@
-use crate::{
-    manifold::Manifold,
-    module::Module,
-    sysv::collector::{SysvCollectorResult, SYSV_COLLECTOR_RESULT_KEY},
-    Handle, Segment,
-};
+use crate::{manifold::Manifold, module::Module, Handle, Segment};
+use core::ffi::c_void;
+
+use rustix::mm::{self, MapFlags, MprotectFlags, ProtFlags};
+
+use super::collector::{SysvCollectorResult, SYSV_COLLECTOR_RESULT_KEY};
 
 pub struct SysvLoader {}
 
@@ -24,12 +24,59 @@ impl Module for SysvLoader {
         "sysv-loader"
     }
 
-    fn process_segment(&mut self, _segment: Handle<Segment>, fold: &mut Manifold) {
-        log::info!("Loading segment...");
+    fn process_object(&mut self, _obj: Handle<crate::Object>, fold: &mut Manifold) {
+        log::info!("Loading dependencies...");
         let deps: &SysvCollectorResult = fold.get_shared(SYSV_COLLECTOR_RESULT_KEY).unwrap();
 
         for d in &deps.entries {
             log::info!("Loading deps {}", d.name.to_str().unwrap());
         }
+    }
+
+    fn process_segment(&mut self, segment: Handle<Segment>, fold: &mut Manifold) {
+        log::info!("Loading segment...");
+
+        let s = fold.segments.get(segment).unwrap();
+        let o = fold.objects.get(s.obj).unwrap();
+
+        assert!(s.mem_size > 0, "segment has size 0");
+
+        unsafe {
+            // Allocate memory
+            let mapping = mm::mmap_anonymous(
+                s.vaddr as *mut c_void,
+                s.mem_size,
+                ProtFlags::WRITE, // ,
+                MapFlags::PRIVATE,
+            )
+            .expect("Anonymous mapping failed");
+
+            // Copy segment to mapped memory
+            mapping.copy_from(
+                ((o.raw().as_ptr() as usize) + s.offset) as *mut c_void,
+                s.file_size,
+            );
+
+            if s.mem_size > s.file_size {
+                // Zero memory after segment
+                mapping
+                    .add(s.file_size)
+                    .write_bytes(0, s.mem_size - s.file_size);
+            }
+
+            // Protect pages
+            mm::mprotect(
+                mapping,
+                s.mem_size,
+                MprotectFlags::from_bits(s.flags).unwrap(),
+            )
+            .expect("Protecting pages failed");
+        }
+
+        log::info!(
+            "Segment from: 0x{:x}   prot: {:?}",
+            s.vaddr,
+            ProtFlags::from_bits(s.flags).unwrap()
+        );
     }
 }
