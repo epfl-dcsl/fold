@@ -86,6 +86,7 @@ impl Fold {
         let file_fd = file::open_file_ro(target.to_bytes()).expect("Target is not a file");
         let file = file::map_file(file_fd);
         manifold.add_elf_file(file, target.to_owned());
+        manifold.add_search_paths(self.search_path);
 
         // Execute each phase
         for phase in &mut self.phases {

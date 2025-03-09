@@ -5,6 +5,7 @@ use goblin::elf::{
     section_header::SHT_DYNAMIC,
 };
 use log::trace;
+use rustix::fs;
 
 use crate::{file, manifold::Manifold, module::Module, Handle, Object};
 
@@ -128,14 +129,15 @@ impl Module for SysvCollector {
                 continue;
             }
 
-            let file_fd = file::open_file_ro(
-                format!(
-                    "PATH-TO/dynamic-linker-project/samples/{}",
-                    filename.to_str().unwrap()
-                )
-                .as_str(),
-            )
-            .expect("Target is not a file");
+            let path_lib = manifold
+                .search_paths
+                .iter()
+                .map(|p| format!("{}/{}", p, filename.to_str().unwrap()))
+                .find(|p| fs::stat(p.as_str()).is_ok())
+                .expect("Target not found");
+
+            let file_fd = file::open_file_ro(path_lib.as_str()).expect("Target is not a file");
+
             let file = file::map_file(file_fd);
             let obj = manifold.add_elf_file(file, filename.clone());
 

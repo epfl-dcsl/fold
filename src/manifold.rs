@@ -4,7 +4,7 @@ use alloc::collections::btree_map::BTreeMap;
 use alloc::ffi::CString;
 use alloc::string::String;
 use alloc::sync::Arc;
-use alloc::vec::Vec;
+use alloc::vec::{self, Vec};
 use core::any::{Any, TypeId};
 use core::ops::Index;
 
@@ -21,6 +21,7 @@ pub struct Manifold {
     pub segments: Arena<Segment>,
     pub regions: Arena<()>,
     pub shared: BTreeMap<TypeId, BTreeMap<String, Box<dyn Any>>>,
+    pub search_paths: Vec<String>
 }
 
 impl Manifold {
@@ -31,6 +32,7 @@ impl Manifold {
             segments: Arena::new(),
             regions: Arena::new(),
             shared: BTreeMap::new(),
+            search_paths: Vec::new()
         }
     }
 
@@ -79,6 +81,10 @@ impl Manifold {
             .get(&TypeId::of::<T>())
             .and_then(|v| v.get(key))
             .and_then(|v| v.downcast_ref())
+    }
+
+    pub fn add_search_paths(&mut self, paths: Vec<String> ) {
+        self.search_paths.extend(paths);
     }
 }
 

@@ -20,7 +20,7 @@ fn entry(env: Env) -> ! {
         .search_path("/lib")
         .search_path("/lib64")
         .search_path("/usr/lib/")
-        .search_path("/home/noe/EPFL/semester_project/dynamic-linker-project/samples")
+        .search_path("/PATH/TO/dynamic-linker-project/samples")
         .phase("collect")
         .register(SysvCollector::new(), ObjectFilter::any())
         .phase("load dependencies")
