@@ -1,6 +1,7 @@
-use crate::{manifold::Manifold, module::Module, Handle, Segment};
+use crate::{manifold::Manifold, module::Module, println, Handle, Segment};
 use core::ffi::c_void;
 
+use log::info;
 use rustix::mm::{self, MapFlags, MprotectFlags, ProtFlags};
 
 use super::collector::{SysvCollectorResult, SYSV_COLLECTOR_RESULT_KEY};
@@ -42,14 +43,20 @@ impl Module for SysvLoader {
         assert!(s.mem_size > 0, "segment has size 0");
 
         unsafe {
+            let offset = fold.pie_load_offset.unwrap_or(0);
+
             // Allocate memory
             let mapping = mm::mmap_anonymous(
-                s.vaddr as *mut c_void,
+                (s.vaddr + offset) as *mut c_void,
                 s.mem_size,
                 ProtFlags::WRITE, // ,
                 MapFlags::PRIVATE,
             )
             .expect("Anonymous mapping failed");
+
+            if s.vaddr == 0 && fold.pie_load_offset.is_none() {
+                fold.pie_load_offset = Some(mapping as usize)
+            }
 
             // Copy segment to mapped memory
             mapping.copy_from(
@@ -71,12 +78,13 @@ impl Module for SysvLoader {
                 MprotectFlags::from_bits(s.flags).unwrap(),
             )
             .expect("Protecting pages failed");
-        }
 
-        log::info!(
-            "Segment from: 0x{:x}   prot: {:?}",
-            s.vaddr,
-            ProtFlags::from_bits(s.flags).unwrap()
-        );
+            log::info!(
+                "Segment from: 0x{:x} mapped to 0x{:x}  prot: {:?}",
+                s.vaddr,
+                mapping as usize,
+                ProtFlags::from_bits(s.flags).unwrap()
+            );
+        }
     }
 }
