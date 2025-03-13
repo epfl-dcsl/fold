@@ -1,7 +1,6 @@
-use crate::{manifold::Manifold, module::Module, println, Handle, Segment};
-use core::ffi::c_void;
+use crate::{manifold::Manifold, module::Module, Handle, Segment};
+use core::{ffi::c_void, iter::Map, ptr};
 
-use log::info;
 use rustix::mm::{self, MapFlags, MprotectFlags, ProtFlags};
 
 use super::collector::{SysvCollectorResult, SYSV_COLLECTOR_RESULT_KEY};
@@ -40,17 +39,33 @@ impl Module for SysvLoader {
         let s = fold.segments.get(segment).unwrap();
         let o = fold.objects.get(s.obj).unwrap();
 
-        assert!(s.mem_size > 0, "segment has size 0");
+        if s.mem_size == 0 {
+            return;
+        }
 
         unsafe {
             let offset = fold.pie_load_offset.unwrap_or(0);
 
             // Allocate memory
+            let addr = s.vaddr + offset;
+            log::info!(
+                "vaddr {:x} offset {:x} ptr {:x} size {:x}",
+                s.vaddr,
+                offset,
+                (addr & (!0xfff)),
+                s.mem_size + (addr & 0xfff)
+            );
+
             let mapping = mm::mmap_anonymous(
-                (s.vaddr + offset) as *mut c_void,
-                s.mem_size,
-                ProtFlags::WRITE, // ,
-                MapFlags::PRIVATE,
+                (addr & (!0xfff)) as *mut c_void,
+                s.mem_size + (addr & 0xfff),
+                ProtFlags::WRITE,
+                MapFlags::PRIVATE
+                    | if addr == 0 {
+                        MapFlags::empty()
+                    } else {
+                        MapFlags::FIXED
+                    },
             )
             .expect("Anonymous mapping failed");
 
@@ -58,15 +73,16 @@ impl Module for SysvLoader {
                 fold.pie_load_offset = Some(mapping as usize)
             }
 
-            // Copy segment to mapped memory
-            mapping.copy_from(
+            let mapping_start = mapping.add(addr & 0xfff);
+
+            mapping_start.copy_from(
                 ((o.raw().as_ptr() as usize) + s.offset) as *mut c_void,
                 s.file_size,
             );
 
             if s.mem_size > s.file_size {
                 // Zero memory after segment
-                mapping
+                mapping_start
                     .add(s.file_size)
                     .write_bytes(0, s.mem_size - s.file_size);
             }
@@ -81,7 +97,7 @@ impl Module for SysvLoader {
 
             log::info!(
                 "Segment from: 0x{:x} mapped to 0x{:x}  prot: {:?}",
-                s.vaddr,
+                s.offset,
                 mapping as usize,
                 ProtFlags::from_bits(s.flags).unwrap()
             );
