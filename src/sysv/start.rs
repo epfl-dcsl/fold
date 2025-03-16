@@ -26,7 +26,12 @@ impl Module for SysvStart {
     fn process_object(&mut self, obj: Handle<crate::Object>, manifold: &mut Manifold) {
         let offset = manifold.pie_load_offset.unwrap_or(0);
 
-        let entry = manifold.objects.get(obj).unwrap().header().e_entry + offset as u64;
+        let entry = 0x1000 + offset as u64;
+
+        log::info!(
+            "{offset:x}, {:x}, {entry:x}",
+            manifold.objects.get(obj).unwrap().header().e_entry
+        );
 
         let stack = build_stack();
 

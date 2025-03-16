@@ -20,5 +20,9 @@ fmt:
 doc:
 	cargo +nightly doc --target {{target}} -Z build-std=core,alloc --open
 
+clean:
+	cargo clean
+	@just --justfile samples/justfile clean
+
 # The following line gives highlighting on vim
 # vim: set ft=make :

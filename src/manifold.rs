@@ -19,8 +19,8 @@ pub struct Manifold {
     pub objects: Arena<Object>,
     pub sections: Arena<Section>,
     pub segments: Arena<Segment>,
-    pub regions: Arena<()>,
     pub shared: BTreeMap<TypeId, BTreeMap<String, Box<dyn Any>>>,
+    pub regions: Arena<()>,
     pub search_paths: Vec<String>,
     pub pie_load_offset: Option<usize>,
 }

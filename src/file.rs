@@ -62,8 +62,7 @@ pub fn map_file(fd: OwnedFd) -> Mapping {
         )
         .expect("mmap failed");
 
-        let mapping = Mapping::new(ptr as *mut u8, len, Some(fd));
-        mapping
+        Mapping::new(ptr as *mut u8, len, Some(fd))
     }
 }
 
