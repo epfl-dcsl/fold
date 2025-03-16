@@ -1,6 +1,23 @@
-use goblin::elf::reloc::R_X86_64_RELATIVE;
+use core::slice;
 
-use crate::{bytes::BytesIter, dbg, manifold::Manifold, module::Module, println, Handle};
+use goblin::elf::reloc::R_X86_64_RELATIVE;
+use log::info;
+
+use crate::{bytes::BytesIter, manifold::Manifold, module::Module, println, Handle};
+
+macro_rules! apply_reloc {
+    ($addr:expr, $value:expr, $size:expr) => {
+        let a = $addr;
+        let v = $value;
+        let s = $size;
+
+        info!("Relocating at {a:x?} with value {v:x?} ({s}B)");
+
+        unsafe {
+            slice::from_raw_parts_mut(a, s).copy_from_slice(&v.to_le_bytes());
+        }
+    };
+}
 
 pub struct SysvReloc {}
 
@@ -18,28 +35,26 @@ impl Default for SysvReloc {
 
 impl Module for SysvReloc {
     fn name(&self) -> &'static str {
-        "sysv-start"
+        "sysv-reloc"
     }
 
     fn process_section(&mut self, section: Handle<crate::Section>, manifold: &mut Manifold) {
         log::info!("Process relocation...");
 
         let section = manifold.sections.get(section).unwrap();
+        let base = manifold.pie_load_offset.unwrap() as *mut u8;
 
         for rela in ElfRelaIter::on_bytes(
             &section.mapping.bytes()[section.offset..section.offset + section.size],
         ) {
-            println!("{:#x?}", rela);
+            let addr = unsafe { base.add(rela.offset as usize) };
 
             match rela.r#type {
                 R_X86_64_RELATIVE => {
-                    let base = manifold.pie_load_offset.unwrap() as *mut u64;
-                    unsafe {
-                        *(base.add(rela.offset as usize)) = base as u64 + rela.addend;
-                    };
+                    apply_reloc!(addr, base as u64 + rela.addend, 8);
                 }
                 _ => panic!("unknown rela type {:x}", rela.r#type),
-            }
+            };
         }
     }
 }
