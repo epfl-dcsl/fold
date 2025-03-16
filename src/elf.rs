@@ -97,12 +97,12 @@ impl<'a, T> ElfItemIterator<'a, T> {
     }
 
     pub fn from_section(sh: &'a Section) -> Self {
-        assert_eq!(sh.entity_size as usize, core::mem::size_of::<T>());
+        assert_eq!({ sh.entity_size }, core::mem::size_of::<T>());
         Self {
             raw: sh.mapping.bytes(),
-            idx: sh.offset as usize,
-            end: (sh.offset + sh.size) as usize,
-            item_size: sh.entity_size as usize,
+            idx: sh.offset,
+            end: (sh.offset + sh.size),
+            item_size: sh.entity_size,
             _marker: PhantomData,
         }
     }

@@ -17,6 +17,9 @@ check:
 clippy:
 	cargo +nightly clippy --target {{target}} -Z build-std=core,alloc
 
+clippy-fix:
+	cargo +nightly clippy --target {{target}} -Z build-std=core,alloc --fix --allow-dirty
+
 fmt:
 	cargo +nightly fmt
 
