@@ -1,7 +1,6 @@
-use crate::{manifold::Manifold, module::Module, println, Handle, Segment};
+use crate::{manifold::Manifold, module::Module, Handle, Segment};
 use core::ffi::c_void;
 
-use log::info;
 use rustix::mm::{self, MapFlags, MprotectFlags, ProtFlags};
 
 use super::collector::{SysvCollectorResult, SYSV_COLLECTOR_RESULT_KEY};
