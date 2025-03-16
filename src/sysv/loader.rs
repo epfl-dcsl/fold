@@ -58,7 +58,18 @@ impl Module for SysvLoader {
 
             let mapping = mm::mmap_anonymous(
                 (addr & (!0xfff)) as *mut c_void,
-                s.mem_size + (addr & 0xfff),
+                s.mem_size
+                    + (addr & 0xfff)
+                    + if addr == 0 {
+                        let max = o
+                            .segments
+                            .iter()
+                            .map(|s| &fold.segments[*s])
+                            .max_by_key(|s| s.vaddr);
+                        max.map(|s| s.vaddr + s.mem_size).unwrap_or(0)
+                    } else {
+                        0
+                    },
                 ProtFlags::WRITE,
                 MapFlags::PRIVATE
                     | if addr == 0 {
