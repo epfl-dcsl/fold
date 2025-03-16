@@ -3,7 +3,7 @@ use core::slice;
 use goblin::elf::reloc::R_X86_64_RELATIVE;
 use log::info;
 
-use crate::{bytes::BytesIter, manifold::Manifold, module::Module, println, Handle};
+use crate::{bytes::BytesIter, manifold::Manifold, module::Module, Handle};
 
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $size:expr) => {

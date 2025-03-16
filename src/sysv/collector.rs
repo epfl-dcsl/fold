@@ -1,5 +1,5 @@
 use alloc::{borrow::ToOwned, ffi::CString, format, vec::Vec};
-use core::{ffi::CStr, fmt::Debug, mem};
+use core::{ffi::CStr, fmt::Debug};
 use goblin::elf::{
     dynamic::{DT_NEEDED, DT_STRTAB},
     section_header::SHT_DYNAMIC,
