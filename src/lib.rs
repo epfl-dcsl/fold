@@ -19,6 +19,7 @@ pub mod manifold;
 pub mod module;
 mod object;
 pub mod sysv;
+pub mod bytes;
 
 pub use arena::Handle;
 pub use driver::new;

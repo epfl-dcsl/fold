@@ -1,8 +1,6 @@
-use core::mem;
-
 use goblin::elf::reloc::R_X86_64_RELATIVE;
 
-use crate::{manifold::Manifold, module::Module, Handle};
+use crate::{bytes::BytesIter, dbg, manifold::Manifold, module::Module, println, Handle};
 
 pub struct SysvReloc {}
 
@@ -28,9 +26,11 @@ impl Module for SysvReloc {
 
         let section = manifold.sections.get(section).unwrap();
 
-        for rela in (ElfRelaIter {
-            bytes: &section.mapping.bytes()[section.offset..section.offset + section.size],
-        }) {
+        for rela in ElfRelaIter::on_bytes(
+            &section.mapping.bytes()[section.offset..section.offset + section.size],
+        ) {
+            println!("{:#x?}", rela);
+
             match rela.r#type {
                 R_X86_64_RELATIVE => {
                     let base = manifold.pie_load_offset.unwrap() as *mut u64;
@@ -53,20 +53,14 @@ pub struct Rela {
 }
 
 struct ElfRelaIter<'a> {
-    bytes: &'a [u8],
+    bytes: BytesIter<'a>,
 }
 
-impl ElfRelaIter<'_> {
-    fn read_u32(&mut self) -> Option<u32> {
-        let (int_bytes, rest) = self.bytes.split_at_checked(mem::size_of::<u32>())?;
-        self.bytes = rest;
-        int_bytes.try_into().ok().map(u32::from_le_bytes)
-    }
-
-    fn read_u64(&mut self) -> Option<u64> {
-        let (int_bytes, rest) = self.bytes.split_at_checked(mem::size_of::<u64>())?;
-        self.bytes = rest;
-        int_bytes.try_into().ok().map(u64::from_le_bytes)
+impl<'a> ElfRelaIter<'a> {
+    pub fn on_bytes(bytes: &'a [u8]) -> Self {
+        Self {
+            bytes: BytesIter { bytes },
+        }
     }
 }
 
@@ -75,10 +69,10 @@ impl Iterator for ElfRelaIter<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         Some(Rela {
-            offset: self.read_u64()?,
-            r#type: self.read_u32()?,
-            sym: self.read_u32()?,
-            addend: self.read_u64()?,
+            offset: self.bytes.read()?,
+            r#type: self.bytes.read()?,
+            sym: self.bytes.read()?,
+            addend: self.bytes.read()?,
         })
     }
 }
