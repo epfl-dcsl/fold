@@ -51,7 +51,7 @@ impl Module for SysvReloc {
         for rela in ElfItemIterator::<Rela>::from_section(section) {
             let addr = unsafe { base.add(rela.r_offset as usize) };
             let r#type = rela.r_info as u32;
-            let sym = (rela.r_info >> 32) as u32;
+            let _sym = (rela.r_info >> 32) as u32;
 
             match r#type {
                 R_X86_64_RELATIVE => {
