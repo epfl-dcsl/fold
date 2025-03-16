@@ -15,6 +15,8 @@ pub use goblin::elf64::section_header::SectionHeader;
 pub use goblin::elf64::sym::Sym;
 use plain::Plain;
 
+use crate::Section;
+
 /// Re-export most of Goblin constants
 pub mod cst {
     pub use goblin::elf64::dynamic::*;
@@ -83,13 +85,24 @@ impl<'a, T> ElfItemIterator<'a, T> {
         }
     }
 
-    pub fn from_section(raw: &'a [u8], sh: &SectionHeader) -> Self {
+    pub fn from_section_header(raw: &'a [u8], sh: &SectionHeader) -> Self {
         assert_eq!(sh.sh_entsize as usize, core::mem::size_of::<T>());
         Self {
             raw,
             idx: sh.sh_offset as usize,
             end: (sh.sh_offset + sh.sh_size) as usize,
             item_size: sh.sh_entsize as usize,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn from_section(sh: &'a Section) -> Self {
+        assert_eq!(sh.entity_size as usize, core::mem::size_of::<T>());
+        Self {
+            raw: sh.mapping.bytes(),
+            idx: sh.offset as usize,
+            end: (sh.offset + sh.size) as usize,
+            item_size: sh.entity_size as usize,
             _marker: PhantomData,
         }
     }

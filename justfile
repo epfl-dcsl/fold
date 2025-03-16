@@ -13,6 +13,9 @@ build:
 
 check:
 	cargo +nightly check --target {{target}} -Z build-std=core,alloc
+	
+clippy:
+	cargo +nightly clippy --target {{target}} -Z build-std=core,alloc
 
 fmt:
 	cargo +nightly fmt

@@ -1,9 +1,13 @@
 use core::slice;
 
 use goblin::elf::reloc::R_X86_64_RELATIVE;
+use goblin::elf64::reloc::Rela;
 use log::info;
 
-use crate::{bytes::BytesIter, manifold::Manifold, module::Module, Handle};
+use crate::elf::ElfItemIterator;
+use crate::manifold::Manifold;
+use crate::module::Module;
+use crate::Handle;
 
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $size:expr) => {
@@ -44,50 +48,17 @@ impl Module for SysvReloc {
         let section = manifold.sections.get(section).unwrap();
         let base = manifold.pie_load_offset.unwrap() as *mut u8;
 
-        for rela in ElfRelaIter::on_bytes(
-            &section.mapping.bytes()[section.offset..section.offset + section.size],
-        ) {
-            let addr = unsafe { base.add(rela.offset as usize) };
+        for rela in ElfItemIterator::<Rela>::from_section(section) {
+            let addr = unsafe { base.add(rela.r_offset as usize) };
+            let r#type = rela.r_info as u32;
+            let sym = (rela.r_info >> 32) as u32;
 
-            match rela.r#type {
+            match r#type {
                 R_X86_64_RELATIVE => {
-                    apply_reloc!(addr, base as u64 + rela.addend, 8);
+                    apply_reloc!(addr, (base as i64 + rela.r_addend) as u64, 8);
                 }
-                _ => panic!("unknown rela type {:x}", rela.r#type),
+                _ => panic!("unknown rela type {:x}", r#type),
             };
         }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct Rela {
-    pub offset: u64,
-    pub r#type: u32,
-    pub sym: u32,
-    pub addend: u64,
-}
-
-struct ElfRelaIter<'a> {
-    bytes: BytesIter<'a>,
-}
-
-impl<'a> ElfRelaIter<'a> {
-    pub fn on_bytes(bytes: &'a [u8]) -> Self {
-        Self {
-            bytes: BytesIter { bytes },
-        }
-    }
-}
-
-impl Iterator for ElfRelaIter<'_> {
-    type Item = Rela;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(Rela {
-            offset: self.bytes.read()?,
-            r#type: self.bytes.read()?,
-            sym: self.bytes.read()?,
-            addend: self.bytes.read()?,
-        })
     }
 }

@@ -1,13 +1,20 @@
-use alloc::{borrow::ToOwned, ffi::CString, format, vec::Vec};
-use core::{ffi::CStr, fmt::Debug};
-use goblin::elf::{
-    dynamic::{DT_NEEDED, DT_STRTAB},
-    section_header::SHT_DYNAMIC,
-};
+use alloc::borrow::ToOwned;
+use alloc::ffi::CString;
+use alloc::format;
+use alloc::vec::Vec;
+use core::ffi::CStr;
+use core::fmt::Debug;
+
+use goblin::elf::dynamic::{DT_NEEDED, DT_STRTAB};
+use goblin::elf::section_header::SHT_DYNAMIC;
+use goblin::elf64::dynamic::Dyn;
 use log::trace;
 use rustix::fs;
 
-use crate::{bytes::BytesIter, file, manifold::Manifold, module::Module, Handle, Object};
+use crate::elf::ElfItemIterator;
+use crate::manifold::Manifold;
+use crate::module::Module;
+use crate::{file, Handle, Object};
 
 #[derive(Clone)]
 pub struct SysvCollectorEntry {
@@ -44,26 +51,6 @@ impl Default for SysvCollector {
     }
 }
 
-struct ElfDynIter<'a> {
-    bytes: BytesIter<'a>,
-}
-
-impl<'a> ElfDynIter<'a> {
-    pub fn on_bytes(bytes: &'a [u8]) -> Self {
-        Self {
-            bytes: BytesIter { bytes },
-        }
-    }
-}
-
-impl Iterator for ElfDynIter<'_> {
-    type Item = (u64, u64);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some((self.bytes.read()?, self.bytes.read()?))
-    }
-}
-
 impl Module for SysvCollector {
     fn name(&self) -> &'static str {
         "sysv-collector"
@@ -83,12 +70,10 @@ impl Module for SysvCollector {
                     let mut strtab = None;
                     let mut deps_idx = Vec::new();
 
-                    for (tag, value) in ElfDynIter::on_bytes(
-                        &sec.mapping.bytes()[sec.offset..sec.offset + sec.size],
-                    ) {
-                        match tag {
-                            DT_STRTAB => strtab = Some(value),
-                            DT_NEEDED => deps_idx.push(value),
+                    for dy in ElfItemIterator::<Dyn>::from_section(sec) {
+                        match dy.d_tag {
+                            DT_STRTAB => strtab = Some(dy.d_val),
+                            DT_NEEDED => deps_idx.push(dy.d_val),
                             _ => {}
                         }
                     }
