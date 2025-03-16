@@ -7,7 +7,7 @@ use goblin::elf::{
 use log::trace;
 use rustix::fs;
 
-use crate::{file, manifold::Manifold, module::Module, Handle, Object};
+use crate::{bytes::BytesIter, file, manifold::Manifold, module::Module, Handle, Object};
 
 #[derive(Clone)]
 pub struct SysvCollectorEntry {
@@ -45,28 +45,22 @@ impl Default for SysvCollector {
 }
 
 struct ElfDynIter<'a> {
-    bytes: &'a [u8],
+    bytes: BytesIter<'a>,
+}
+
+impl<'a> ElfDynIter<'a> {
+    pub fn on_bytes(bytes: &'a [u8]) -> Self {
+        Self {
+            bytes: BytesIter { bytes },
+        }
+    }
 }
 
 impl Iterator for ElfDynIter<'_> {
     type Item = (u64, u64);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.bytes.is_empty() {
-            None
-        } else {
-            let u64size = mem::size_of::<u64>();
-
-            let (int_bytes, rest) = self.bytes.split_at(u64size);
-            self.bytes = rest;
-            let tag = u64::from_le_bytes(int_bytes.try_into().unwrap());
-
-            let (int_bytes, rest) = self.bytes.split_at(u64size);
-            self.bytes = rest;
-            let value = u64::from_le_bytes(int_bytes.try_into().unwrap());
-
-            Some((tag, value))
-        }
+        Some((self.bytes.read()?, self.bytes.read()?))
     }
 }
 
@@ -89,9 +83,9 @@ impl Module for SysvCollector {
                     let mut strtab = None;
                     let mut deps_idx = Vec::new();
 
-                    for (tag, value) in (ElfDynIter {
-                        bytes: &sec.mapping.bytes()[sec.offset..sec.offset + sec.size],
-                    }) {
+                    for (tag, value) in ElfDynIter::on_bytes(
+                        &sec.mapping.bytes()[sec.offset..sec.offset + sec.size],
+                    ) {
                         match tag {
                             DT_STRTAB => strtab = Some(value),
                             DT_NEEDED => deps_idx.push(value),
