@@ -1,10 +1,13 @@
-use crate::{file::MappingMut, manifold::Manifold, module::Module, Handle, Segment};
+use alloc::sync::Arc;
 use core::ffi::c_void;
 
-use alloc::sync::Arc;
 use rustix::mm::{self, MapFlags, ProtFlags};
 
 use super::collector::{SysvCollectorResult, SYSV_COLLECTOR_RESULT_KEY};
+use crate::file::MappingMut;
+use crate::manifold::Manifold;
+use crate::module::Module;
+use crate::{Handle, Segment};
 
 pub struct SysvLoader {}
 

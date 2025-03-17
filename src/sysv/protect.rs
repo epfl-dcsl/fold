@@ -1,8 +1,10 @@
 use core::ffi::c_void;
 
-use crate::{manifold::Manifold, module::Module, println, Handle, Segment};
-
 use rustix::mm::{self, MprotectFlags, ProtFlags};
+
+use crate::manifold::Manifold;
+use crate::module::Module;
+use crate::{println, Handle, Segment};
 
 pub struct SysvProtect {}
 

@@ -1,8 +1,9 @@
+use alloc::vec::Vec;
 use core::arch::asm;
 
-use alloc::vec::Vec;
-
-use crate::{manifold::Manifold, module::Module, Handle};
+use crate::manifold::Manifold;
+use crate::module::Module;
+use crate::Handle;
 
 pub struct SysvStart {}
 
