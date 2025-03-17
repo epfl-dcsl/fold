@@ -1,7 +1,8 @@
-use crate::{manifold::Manifold, module::Module, Handle, Segment};
+use crate::{file::Mapping, manifold::Manifold, module::Module, Handle, Segment};
 use core::ffi::c_void;
 
-use rustix::mm::{self, MapFlags, MprotectFlags, ProtFlags};
+use alloc::sync::Arc;
+use rustix::mm::{self, MapFlags, ProtFlags};
 
 use super::collector::{SysvCollectorResult, SYSV_COLLECTOR_RESULT_KEY};
 
@@ -36,7 +37,7 @@ impl Module for SysvLoader {
     fn process_segment(&mut self, segment: Handle<Segment>, fold: &mut Manifold) {
         log::info!("Loading segment...");
 
-        let s = fold.segments.get(segment).unwrap();
+        let s = &mut fold.segments[segment];
         let o = fold.objects.get(s.obj).unwrap();
 
         if s.mem_size == 0 {
@@ -48,13 +49,6 @@ impl Module for SysvLoader {
 
             // Allocate memory
             let addr = s.vaddr + offset;
-            log::info!(
-                "vaddr {:x} offset {:x} ptr {:x} size {:x}",
-                s.vaddr,
-                offset,
-                (addr & (!0xfff)),
-                s.mem_size + (addr & 0xfff)
-            );
 
             let mapping = mm::mmap_anonymous(
                 (addr & (!0xfff)) as *mut c_void,
@@ -69,12 +63,17 @@ impl Module for SysvLoader {
             )
             .expect("Anonymous mapping failed");
 
+            log::info!("Segment loaded at 0x{:x}", mapping as usize);
+
             if s.vaddr == 0 && fold.pie_load_offset.is_none() {
                 fold.pie_load_offset = Some(mapping as usize)
             }
 
             let mapping_start = mapping.add(addr & 0xfff);
 
+            s.mapping = Arc::new(Mapping::new(mapping_start as *const u8, s.mem_size, None));
+
+            // Copy segment data
             mapping_start.copy_from(
                 ((o.raw().as_ptr() as usize) + s.offset) as *mut c_void,
                 s.file_size,
@@ -86,21 +85,6 @@ impl Module for SysvLoader {
                     .add(s.file_size)
                     .write_bytes(0, s.mem_size - s.file_size);
             }
-
-            // Protect pages
-            mm::mprotect(
-                mapping,
-                s.mem_size,
-                MprotectFlags::from_bits(s.flags).unwrap(),
-            )
-            .expect("Protecting pages failed");
-
-            log::info!(
-                "Segment from: 0x{:x} mapped to 0x{:x}  prot: {:?}",
-                s.offset,
-                mapping as usize,
-                ProtFlags::from_bits(s.flags).unwrap()
-            );
         }
     }
 }

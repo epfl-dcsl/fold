@@ -2,7 +2,7 @@ use core::mem;
 
 use goblin::elf::reloc::R_X86_64_RELATIVE;
 
-use crate::{manifold::Manifold, module::Module, Handle};
+use crate::{dbg, manifold::Manifold, module::Module, println, Handle};
 
 pub struct SysvReloc {}
 
@@ -20,7 +20,7 @@ impl Default for SysvReloc {
 
 impl Module for SysvReloc {
     fn name(&self) -> &'static str {
-        "sysv-start"
+        "sysv-reloc"
     }
 
     fn process_section(&mut self, section: Handle<crate::Section>, manifold: &mut Manifold) {
@@ -60,13 +60,15 @@ impl ElfRelaIter<'_> {
     fn read_u32(&mut self) -> Option<u32> {
         let (int_bytes, rest) = self.bytes.split_at_checked(mem::size_of::<u32>())?;
         self.bytes = rest;
-        int_bytes.try_into().ok().map(u32::from_le_bytes)
+        TryInto::<[u8; 4]>::try_into(int_bytes)
+            .ok()
+            .map(u32::from_le_bytes)
     }
 
     fn read_u64(&mut self) -> Option<u64> {
-        let (int_bytes, rest) = self.bytes.split_at_checked(mem::size_of::<u64>())?;
+        let (int_bytes, rest) = self.bytes.split_at(mem::size_of::<u64>());
         self.bytes = rest;
-        int_bytes.try_into().ok().map(u64::from_le_bytes)
+        Some(u64::from_le_bytes(int_bytes.try_into().unwrap()))
     }
 }
 
