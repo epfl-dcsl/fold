@@ -31,6 +31,22 @@ impl Mapping {
     }
 }
 
+impl MappingMut {
+    pub(crate) unsafe fn new(ptr: *mut u8, len: usize) -> Self {
+        Self {
+            bytes: core::slice::from_raw_parts_mut(ptr, len),
+        }
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        self.bytes
+    }
+
+    pub fn bytes_mut(&mut self) -> &mut [u8] {
+        self.bytes
+    }
+}
+
 /// Open a file in read only
 pub fn open_file_ro<P: path::Arg>(path: P) -> Result<OwnedFd, ()> {
     let fd = fs::open(path, fs::OFlags::RDONLY, fs::Mode::empty()).map_err(|_| ())?;

@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use crate::arena::Handle;
 use crate::elf::{cst, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
 use crate::exit::exit_error;
-use crate::file::Mapping;
+use crate::file::{Mapping, MappingMut};
 use crate::filters::ObjectFilter;
 use crate::manifold::Manifold;
 
@@ -124,6 +124,7 @@ impl Object {
 pub struct Segment {
     /// The mapping backing this segment.
     pub mapping: Arc<Mapping>,
+    pub loaded_mapping: Option<Arc<MappingMut>>,
     /// The object containing this segment.
     pub obj: Handle<Object>,
     /// The type of the program header (ph_type).
@@ -155,6 +156,7 @@ impl Segment {
 
         Self {
             mapping: mapping.clone(),
+            loaded_mapping: None,
             obj: obj_idx,
             tag: header.p_type,
             flags: header.p_flags,

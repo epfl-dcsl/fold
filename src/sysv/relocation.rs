@@ -1,8 +1,27 @@
-use core::mem;
+use core::slice;
 
 use goblin::elf::reloc::R_X86_64_RELATIVE;
+use goblin::elf64::reloc::Rela;
+use log::info;
 
-use crate::{dbg, manifold::Manifold, module::Module, println, Handle};
+use crate::elf::ElfItemIterator;
+use crate::manifold::Manifold;
+use crate::module::Module;
+use crate::Handle;
+
+macro_rules! apply_reloc {
+    ($addr:expr, $value:expr, $size:expr) => {
+        let a = $addr;
+        let v = $value;
+        let s = $size;
+
+        info!("Relocating at {a:x?} with value {v:x?} ({s}B)");
+
+        unsafe {
+            slice::from_raw_parts_mut(a, s).copy_from_slice(&v.to_le_bytes());
+        }
+    };
+}
 
 pub struct SysvReloc {}
 
@@ -27,60 +46,19 @@ impl Module for SysvReloc {
         log::info!("Process relocation...");
 
         let section = manifold.sections.get(section).unwrap();
+        let base = manifold.pie_load_offset.unwrap() as *mut u8;
 
-        for rela in (ElfRelaIter {
-            bytes: &section.mapping.bytes()[section.offset..section.offset + section.size],
-        }) {
-            match rela.r#type {
+        for rela in ElfItemIterator::<Rela>::from_section(section) {
+            let addr = unsafe { base.add(rela.r_offset as usize) };
+            let r#type = rela.r_info as u32;
+            let _sym = (rela.r_info >> 32) as u32;
+
+            match r#type {
                 R_X86_64_RELATIVE => {
-                    let base = manifold.pie_load_offset.unwrap() as *mut u64;
-                    unsafe {
-                        *(base.add(rela.offset as usize)) = base as u64 + rela.addend;
-                    };
+                    apply_reloc!(addr, (base as i64 + rela.r_addend) as u64, 8);
                 }
-                _ => panic!("unknown rela type {:x}", rela.r#type),
-            }
+                _ => panic!("unknown rela type {:x}", r#type),
+            };
         }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct Rela {
-    pub offset: u64,
-    pub r#type: u32,
-    pub sym: u32,
-    pub addend: u64,
-}
-
-struct ElfRelaIter<'a> {
-    bytes: &'a [u8],
-}
-
-impl ElfRelaIter<'_> {
-    fn read_u32(&mut self) -> Option<u32> {
-        let (int_bytes, rest) = self.bytes.split_at_checked(mem::size_of::<u32>())?;
-        self.bytes = rest;
-        TryInto::<[u8; 4]>::try_into(int_bytes)
-            .ok()
-            .map(u32::from_le_bytes)
-    }
-
-    fn read_u64(&mut self) -> Option<u64> {
-        let (int_bytes, rest) = self.bytes.split_at(mem::size_of::<u64>());
-        self.bytes = rest;
-        Some(u64::from_le_bytes(int_bytes.try_into().unwrap()))
-    }
-}
-
-impl Iterator for ElfRelaIter<'_> {
-    type Item = Rela;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(Rela {
-            offset: self.read_u64()?,
-            r#type: self.read_u32()?,
-            sym: self.read_u32()?,
-            addend: self.read_u64()?,
-        })
     }
 }

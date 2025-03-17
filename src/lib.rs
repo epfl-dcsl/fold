@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+#![allow(dead_code)]
+
 extern crate alloc;
 
 use core::panic::PanicInfo;

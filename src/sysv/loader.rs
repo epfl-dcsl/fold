@@ -1,4 +1,4 @@
-use crate::{file::Mapping, manifold::Manifold, module::Module, Handle, Segment};
+use crate::{file::MappingMut, manifold::Manifold, module::Module, Handle, Segment};
 use core::ffi::c_void;
 
 use alloc::sync::Arc;
@@ -37,14 +37,14 @@ impl Module for SysvLoader {
     fn process_segment(&mut self, segment: Handle<Segment>, fold: &mut Manifold) {
         log::info!("Loading segment...");
 
-        let s = &mut fold.segments[segment];
+        let s = &fold.segments[segment];
         let o = fold.objects.get(s.obj).unwrap();
 
         if s.mem_size == 0 {
             return;
         }
 
-        unsafe {
+        let new_mapping = unsafe {
             let offset = fold.pie_load_offset.unwrap_or(0);
 
             // Allocate memory
@@ -52,7 +52,18 @@ impl Module for SysvLoader {
 
             let mapping = mm::mmap_anonymous(
                 (addr & (!0xfff)) as *mut c_void,
-                s.mem_size + (addr & 0xfff),
+                s.mem_size
+                    + (addr & 0xfff)
+                    + if addr == 0 {
+                        let max = o
+                            .segments
+                            .iter()
+                            .map(|s| &fold.segments[*s])
+                            .max_by_key(|s| s.vaddr);
+                        max.map(|s| s.vaddr + s.mem_size).unwrap_or(0)
+                    } else {
+                        0
+                    },
                 ProtFlags::WRITE,
                 MapFlags::PRIVATE
                     | if addr == 0 {
@@ -71,8 +82,6 @@ impl Module for SysvLoader {
 
             let mapping_start = mapping.add(addr & 0xfff);
 
-            s.mapping = Arc::new(Mapping::new(mapping_start as *const u8, s.mem_size, None));
-
             // Copy segment data
             mapping_start.copy_from(
                 ((o.raw().as_ptr() as usize) + s.offset) as *mut c_void,
@@ -85,6 +94,10 @@ impl Module for SysvLoader {
                     .add(s.file_size)
                     .write_bytes(0, s.mem_size - s.file_size);
             }
-        }
+
+            Arc::new(MappingMut::new(mapping_start as *mut u8, s.mem_size))
+        };
+
+        fold.segments[segment].loaded_mapping = Some(new_mapping);
     }
 }

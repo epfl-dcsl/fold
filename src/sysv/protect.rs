@@ -1,6 +1,6 @@
 use core::ffi::c_void;
 
-use crate::{manifold::Manifold, module::Module, Handle, Segment};
+use crate::{manifold::Manifold, module::Module, println, Handle, Segment};
 
 use rustix::mm::{self, MprotectFlags, ProtFlags};
 
@@ -27,25 +27,31 @@ impl Module for SysvProtect {
         log::info!("Loading segment...");
 
         let segment = fold.segments.get(segment).unwrap();
-
-        if segment.mem_size == 0 {
-            return;
-        }
-
-        unsafe {
-            // Protect pages
-            mm::mprotect(
-                segment.mapping.bytes().as_ptr() as *mut c_void,
-                segment.mem_size,
-                MprotectFlags::from_bits(segment.flags).unwrap(),
-            )
-            .expect("Protecting pages failed");
-
-            log::info!(
-                "Segment from: 0x{:x} protected with prot: {:?}",
-                segment.mapping.bytes().as_ptr() as usize,
-                ProtFlags::from_bits(segment.flags).unwrap()
+        if let Some(mapping) = segment.loaded_mapping.as_ref() {
+            println!(
+                "Protecting at {:x?}",
+                mapping.bytes().as_ptr() as *mut c_void
             );
+
+            if segment.mem_size == 0 {
+                return;
+            }
+
+            unsafe {
+                // Protect pages
+                mm::mprotect(
+                    (mapping.bytes().as_ptr() as usize & (!0xfff)) as *mut c_void,
+                    segment.mem_size + (mapping.bytes().as_ptr() as usize & 0xfff),
+                    MprotectFlags::from_bits(segment.flags).unwrap(),
+                )
+                .expect("Protecting pages failed");
+
+                log::info!(
+                    "Segment from: 0x{:x} protected with prot: {:?}",
+                    segment.mapping.bytes().as_ptr() as usize,
+                    ProtFlags::from_bits(segment.flags).unwrap()
+                );
+            }
         }
     }
 }
