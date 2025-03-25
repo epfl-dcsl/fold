@@ -1,7 +1,7 @@
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
-use alloc::vec::Vec;
+use alloc::vec::{self, Vec};
 
 use crate::arena::{Arena, Handle};
 use crate::cli::Config;
@@ -33,9 +33,15 @@ pub fn new(env: Env) -> Fold {
 
     let config = cli::parse(env);
 
+    let path =
+        &config.target.to_string_lossy()[..config.target.to_string_lossy().rfind('/').unwrap()];
+
+    let mut search_path = Vec::new();
+    search_path.push(path.to_owned());
+
     Fold {
         config,
-        search_path: Vec::new(),
+        search_path: search_path,
         phases: Vec::new(),
     }
 }
