@@ -90,7 +90,7 @@ impl Fold {
 
         // Execute each phase
         for phase in &mut self.phases {
-            log::info!("Phase: {}", phase.name);
+            log::info!("[ Phase: {} ]", phase.name);
             Self::drive_phase(phase, &mut manifold);
         }
     }

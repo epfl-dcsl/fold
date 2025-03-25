@@ -3,7 +3,6 @@ use core::ffi::c_void;
 
 use rustix::mm::{self, MapFlags, ProtFlags};
 
-use super::collector::{SysvCollectorResult, SYSV_COLLECTOR_RESULT_KEY};
 use crate::file::MappingMut;
 use crate::manifold::Manifold;
 use crate::module::Module;
@@ -28,20 +27,11 @@ impl Module for SysvLoader {
         "sysv-loader"
     }
 
-    fn process_object(&mut self, _obj: Handle<crate::Object>, fold: &mut Manifold) {
-        log::info!("Loading dependencies...");
-        let deps: &SysvCollectorResult = fold.get_shared(SYSV_COLLECTOR_RESULT_KEY).unwrap();
-
-        for d in &deps.entries {
-            log::info!("Loading deps {}", d.name.to_str().unwrap());
-        }
-    }
-
     fn process_segment(&mut self, segment: Handle<Segment>, fold: &mut Manifold) {
-        log::info!("Loading segment...");
-
+        
         let s = &fold.segments[segment];
         let o = fold.objects.get(s.obj).unwrap();
+        log::info!("Loading segment of {}...", fold.objects.get(s.obj).unwrap().display_path());
 
         if s.mem_size == 0 {
             return;

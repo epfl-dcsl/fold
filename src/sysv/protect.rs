@@ -4,7 +4,7 @@ use rustix::mm::{self, MprotectFlags, ProtFlags};
 
 use crate::manifold::Manifold;
 use crate::module::Module;
-use crate::{println, Handle, Segment};
+use crate::{Handle, Segment};
 
 pub struct SysvProtect {}
 
@@ -26,15 +26,10 @@ impl Module for SysvProtect {
     }
 
     fn process_segment(&mut self, segment: Handle<Segment>, fold: &mut Manifold) {
-        log::info!("Loading segment...");
+        log::info!("Protecting segment...");
 
         let segment = fold.segments.get(segment).unwrap();
         if let Some(mapping) = segment.loaded_mapping.as_ref() {
-            println!(
-                "Protecting at {:x?}",
-                mapping.bytes().as_ptr() as *mut c_void
-            );
-
             if segment.mem_size == 0 {
                 return;
             }
