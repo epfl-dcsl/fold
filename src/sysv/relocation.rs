@@ -49,7 +49,8 @@ impl Module for SysvReloc {
         log::info!("Process relocation...");
 
         let section = manifold.sections.get(section).unwrap();
-        let base = manifold.pie_load_offset.unwrap() as *mut u8;
+        let obj = manifold.objects.get(section.obj).unwrap();
+        let base = obj.pie_load_offset.unwrap() as *mut u8;
 
         for rela in ElfItemIterator::<Rela>::from_section(section) {
             let addr = unsafe { base.add(rela.r_offset as usize) };
@@ -59,7 +60,20 @@ impl Module for SysvReloc {
 
             match r#type {
                 R_X86_64_64 => {
-                    apply_reloc!(addr, (base as i64 + rela.r_addend) as u64, 8);
+                    let dynsym = manifold
+                        .sections
+                        .get(obj.sections[section.link as usize])
+                        .unwrap();
+
+                    let dynsym_entry = ElfItemIterator::<Sym>::from_section(dynsym)
+                        .nth(sym as usize)
+                        .unwrap();
+
+                    apply_reloc!(
+                        addr,
+                        (base as i64 + rela.r_addend + dynsym_entry.st_value as i64) as u64,
+                        8
+                    );
                 }
                 R_X86_64_COPY => {
                     let obj = manifold.objects.get(section.obj).unwrap();
