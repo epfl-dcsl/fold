@@ -34,11 +34,6 @@ impl Module for SysvStart {
 
         let entry = manifold.objects[obj].header().e_entry + offset as u64;
 
-        log::info!(
-            "{offset:x}, {:x}, {entry:x}",
-            manifold.objects.get(obj).unwrap().header().e_entry
-        );
-
         let stack = build_stack();
 
         unsafe {

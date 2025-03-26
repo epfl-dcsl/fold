@@ -45,10 +45,10 @@ impl Module for SysvReloc {
         "sysv-reloc"
     }
 
-    fn process_section(&mut self, section: Handle<crate::Section>, manifold: &mut Manifold) {
+    fn process_section(&mut self, section_handle: Handle<crate::Section>, manifold: &mut Manifold) {
         log::info!("Process relocation...");
 
-        let section = manifold.sections.get(section).unwrap();
+        let section = manifold.sections.get(section_handle).unwrap();
         let obj = manifold.objects.get(section.obj).unwrap();
         let base = obj.pie_load_offset.unwrap() as *mut u8;
 
@@ -56,14 +56,10 @@ impl Module for SysvReloc {
             let addr = unsafe { base.add(rela.r_offset as usize) };
             let r#type = rela.r_info as u32;
             let sym = (rela.r_info >> 32) as u32;
-            log::info!("{sym} {:x}", rela.r_info);
 
             match r#type {
                 R_X86_64_64 => {
-                    let dynsym = manifold
-                        .sections
-                        .get(obj.sections[section.link as usize])
-                        .unwrap();
+                    let dynsym = manifold.get_section_link(section).unwrap();
 
                     let dynsym_entry = ElfItemIterator::<Sym>::from_section(dynsym)
                         .nth(sym as usize)
@@ -76,26 +72,17 @@ impl Module for SysvReloc {
                     );
                 }
                 R_X86_64_COPY => {
-                    let obj = manifold.objects.get(section.obj).unwrap();
-                    let dynsym = manifold
-                        .sections
-                        .get(obj.sections[section.link as usize])
-                        .unwrap();
+                    let dynsym = manifold.get_section_link(section).unwrap();
 
                     let dynsym_entry = ElfItemIterator::<Sym>::from_section(dynsym)
                         .nth(sym as usize)
                         .unwrap();
 
-                    let strtab = manifold
-                        .sections
-                        .get(obj.sections[dynsym.link as usize])
-                        .unwrap();
+                    let strtab = manifold.get_section_link(dynsym).unwrap();
 
-                    let b: &[u8] = strtab.mapping.bytes();
-                    let name = CStr::from_bytes_until_nul(
-                        &b[(dynsym_entry.st_name as usize + strtab.offset)..],
-                    )
-                    .unwrap();
+                    let name = manifold
+                        .read_symbol_value(strtab, dynsym_entry.st_name as usize)
+                        .unwrap();
 
                     rela.r_info as u32;
 
@@ -105,17 +92,15 @@ impl Module for SysvReloc {
                                 let lib_section = manifold.sections.get(*lib_section).unwrap();
 
                                 if lib_section.tag == SHT_DYNSYM {
-                                    let lib_strtab = manifold
-                                        .sections
-                                        .get(lib_obj.sections[lib_section.link as usize])
-                                        .unwrap();
+                                    let lib_strtab =
+                                        manifold.get_section_link(lib_section).unwrap();
                                     for lib_sym in ElfItemIterator::<Sym>::from_section(lib_section)
                                     {
-                                        let b: &[u8] = lib_strtab.mapping.bytes();
-                                        let lib_name = CStr::from_bytes_until_nul(
-                                            &b[(lib_sym.st_name as usize + lib_strtab.offset)..],
-                                        )
-                                        .unwrap();
+                                        let lib_name = manifold.read_symbol_value(
+                                            lib_strtab,
+                                            lib_sym.st_name as usize,
+                                        ).unwrap();
+
                                         if lib_name == name {
                                             let container = manifold
                                                 .sections
