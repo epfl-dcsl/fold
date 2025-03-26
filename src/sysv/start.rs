@@ -25,7 +25,12 @@ impl Module for SysvStart {
     }
 
     fn process_object(&mut self, obj: Handle<crate::Object>, manifold: &mut Manifold) {
-        let offset = manifold.pie_load_offset.unwrap_or(0);
+        let offset = manifold
+            .objects
+            .get(obj)
+            .unwrap()
+            .pie_load_offset
+            .unwrap_or(0);
 
         let entry = manifold.objects[obj].header().e_entry + offset as u64;
 

@@ -34,6 +34,10 @@ impl<T> Arena<T> {
         self.store.get(handle.idx)
     }
 
+    pub fn get_mut(&mut self, handle: Handle<T>) -> Option<&mut T> {
+        self.store.get_mut(handle.idx)
+    }
+
     /// Retur an handle iterator.
     /// The iterator does not borrow self, but does not guarantee handle validity. Therefore,
     /// handles returned by this handler can be invalid.

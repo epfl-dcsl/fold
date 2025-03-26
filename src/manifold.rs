@@ -22,7 +22,6 @@ pub struct Manifold {
     pub shared: BTreeMap<TypeId, BTreeMap<String, Box<dyn Any>>>,
     pub regions: Arena<()>,
     pub search_paths: Vec<String>,
-    pub pie_load_offset: Option<usize>,
 }
 
 impl Manifold {
@@ -34,7 +33,6 @@ impl Manifold {
             regions: Arena::new(),
             shared: BTreeMap::new(),
             search_paths: Vec::new(),
-            pie_load_offset: None,
         }
     }
 

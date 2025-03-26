@@ -35,6 +35,8 @@ pub struct Object {
     e_phentsize: u16,
     /// Number of entries in the program header table.
     pub(crate) e_phnum: u16,
+
+    pub pie_load_offset: Option<usize>,
 }
 
 impl Object {
@@ -55,6 +57,7 @@ impl Object {
             e_phentsize: hdr.e_phentsize,
             e_phnum: hdr.e_phnum,
             mapping: file,
+            pie_load_offset: None,
         };
 
         if let Err(err) = obj.validate() {

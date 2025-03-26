@@ -30,15 +30,15 @@ impl Module for SysvLoader {
     fn process_segment(&mut self, segment: Handle<Segment>, fold: &mut Manifold) {
         
         let s = &fold.segments[segment];
-        let o = fold.objects.get(s.obj).unwrap();
-        log::info!("Loading segment of {}...", fold.objects.get(s.obj).unwrap().display_path());
+        let o = fold.objects.get_mut(s.obj).unwrap();
+        log::info!("Loading segment of {}...", o.display_path());
 
         if s.mem_size == 0 {
             return;
         }
 
         let new_mapping = unsafe {
-            let offset = fold.pie_load_offset.unwrap_or(0);
+            let offset = o.pie_load_offset.unwrap_or(0);
 
             // Allocate memory
             let addr = s.vaddr + offset;
@@ -69,8 +69,8 @@ impl Module for SysvLoader {
 
             log::info!("Segment loaded at 0x{:x}", mapping as usize);
 
-            if s.vaddr == 0 && fold.pie_load_offset.is_none() {
-                fold.pie_load_offset = Some(mapping as usize)
+            if s.vaddr == 0 && o.pie_load_offset.is_none() {
+                o.pie_load_offset = Some(mapping as usize)
             }
 
             let mapping_start = mapping.add(addr & 0xfff);
