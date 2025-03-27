@@ -3,7 +3,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::ffi::{CStr, FromBytesUntilNulError};
 
-use goblin::elf::section_header::SHT_STRTAB;
+use goblin::elf::section_header::{SHT_DYNSYM, SHT_STRTAB};
 
 use crate::arena::Handle;
 use crate::elf::{cst, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
@@ -248,15 +248,82 @@ impl Section {
             })
         }
     }
+
+    pub fn as_dynamic_symbol_table<'a>(&'a self) -> Result<DynamicSymbolSection<'a>, FoldError> {
+        if self.tag == SHT_DYNSYM {
+            Ok(DynamicSymbolSection { section: self })
+        } else {
+            Err(FoldError::InvalidSectionCast {
+                expected: SHT_DYNSYM,
+                actual: self.tag,
+            })
+        }
+    }
+
+    pub fn get_linked_section<'a>(
+        &'_ self,
+        manifold: &'a Manifold,
+    ) -> Result<&'a Section, FoldError> {
+        let obj = manifold.objects.get(self.obj).unwrap();
+
+        manifold
+            .sections
+            .get(obj.sections[self.link as usize])
+            .ok_or(FoldError::MissingLinkedSection)
+    }
 }
+
+// ———————————————————————————————— StringTableSection ————————————————————————————————— //
 
 pub struct StringTableSection<'a> {
     pub section: &'a Section,
 }
 
 impl<'a> StringTableSection<'a> {
-    pub fn get_symbol(&self, index: usize) -> Result<&'a CStr, FromBytesUntilNulError> {
+    pub fn get_symbol(&self, index: usize) -> Result<&'a CStr, FoldError> {
         CStr::from_bytes_until_nul(&self.section.mapping.bytes()[(self.section.offset + index)..])
+            .map_err(|_| FoldError::InvalidString)
+    }
+}
+
+// ———————————————————————————————— DynamicSymbolSection ————————————————————————————————— //
+
+pub struct DynamicSymbolSection<'a> {
+    pub section: &'a Section,
+}
+
+impl<'a> DynamicSymbolSection<'a> {
+    pub fn get_entry(&self, index: usize) -> Result<goblin::elf::sym::sym64::Sym, FoldError> {
+        self.entry_iter()
+            .nth(index)
+            .copied()
+            .ok_or(FoldError::OutOfBounds)
+    }
+
+    pub fn get_symbol(&self, index: usize, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
+        let entry = self.get_entry(index)?;
+
+        self.section
+            .get_linked_section(manifold)?
+            .as_string_table()?
+            .get_symbol(entry.st_name as usize)
+    }
+
+    pub fn entry_iter(&self) -> impl Iterator<Item = &goblin::elf::sym::sym64::Sym> {
+        ElfItemIterator::<goblin::elf::sym::sym64::Sym>::from_section(self.section)
+    }
+
+    pub fn symbol_iter(
+        &self,
+        manifold: &'a Manifold,
+    ) -> impl Iterator<Item = Result<(&goblin::elf::sym::sym64::Sym, &CStr), FoldError>> {
+        self.entry_iter().map(|sym_entry| {
+            self.section
+                .get_linked_section(manifold)?
+                .as_string_table()?
+                .get_symbol(sym_entry.st_name as usize)
+                .map(|symbol| (sym_entry, symbol))
+        })
     }
 }
 
