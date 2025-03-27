@@ -81,7 +81,6 @@ impl Module for SysvCollector {
                         .filter(|e| e.d_tag == DT_NEEDED)
                         .map(|e| e.d_val)
                     {
-                        log::info!("{:?} {:?} {}", sec.mapping, linked_dynstr.mapping, idx);
                         deps.push(CString::from(
                             CStr::from_bytes_until_nul(
                                 &linked_dynstr.mapping.bytes()
@@ -89,7 +88,6 @@ impl Module for SysvCollector {
                             )
                             .expect("Invalid deps str"),
                         ));
-                        log::info!("{:?}", deps);
                     }
                 }
             }
