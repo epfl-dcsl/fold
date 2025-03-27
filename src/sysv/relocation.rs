@@ -48,9 +48,9 @@ impl Module for SysvReloc {
         section_handle: Handle<crate::Section>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
-        log::info!("Process relocation...");
-
+        
         let section = manifold.sections.get(section_handle).unwrap();
+        log::info!("Process relocation of section {:?}...", section.get_display_name(manifold).unwrap());
         let obj = manifold.objects.get(section.obj).unwrap();
         let base = obj.pie_load_offset.unwrap() as *mut u8;
 

@@ -39,6 +39,8 @@ pub struct Object {
     e_phentsize: u16,
     /// Number of entries in the program header table.
     pub(crate) e_phnum: u16,
+    /// Index of the section header string table
+    e_shstrndx: u16,
 
     pub pie_load_offset: Option<usize>,
 }
@@ -60,6 +62,7 @@ impl Object {
             e_phoff: hdr.e_phoff as usize,
             e_phentsize: hdr.e_phentsize,
             e_phnum: hdr.e_phnum,
+            e_shstrndx: hdr.e_shstrndx,
             mapping: file,
             pie_load_offset: None,
         };
@@ -131,6 +134,7 @@ impl Object {
 pub struct Segment {
     /// The mapping backing this segment.
     pub mapping: Arc<Mapping>,
+    /// If the segment is loadable, this is the mapping to the loaded
     pub loaded_mapping: Option<Arc<MappingMut>>,
     /// The object containing this segment.
     pub obj: Handle<Object>,
@@ -270,6 +274,16 @@ impl Section {
             .sections
             .get(obj.sections[self.link as usize])
             .ok_or(FoldError::MissingLinkedSection)
+    }
+
+    pub fn get_display_name<'a>(&self, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
+        let obj = manifold.objects.get(self.obj).unwrap();
+        manifold
+            .sections
+            .get(obj.sections[obj.e_shstrndx as usize])
+            .expect("Section not found")
+            .as_string_table()?
+            .get_symbol(self.name as usize)
     }
 }
 
