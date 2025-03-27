@@ -1,4 +1,5 @@
 use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
 use alloc::ffi::CString;
 use alloc::format;
 use alloc::vec::Vec;
@@ -56,7 +57,11 @@ impl Module for SysvCollector {
         "sysv-collector"
     }
 
-    fn process_object(&mut self, obj: Handle<Object>, manifold: &mut Manifold) {
+    fn process_object(
+        &mut self,
+        obj: Handle<Object>,
+        manifold: &mut Manifold,
+    ) -> Result<(), Box<dyn core::fmt::Debug>> {
         fn read_deps(obj: Handle<Object>, manifold: &mut Manifold) -> Vec<CString> {
             let mut deps = Vec::new();
             let obj = &manifold[obj];
@@ -132,5 +137,7 @@ impl Module for SysvCollector {
             SYSV_COLLECTOR_RESULT_KEY,
             SysvCollectorResult { entries: deps },
         );
+
+        Ok(())
     }
 }

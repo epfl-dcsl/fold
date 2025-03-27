@@ -1,7 +1,7 @@
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
-use alloc::vec::{self, Vec};
+use alloc::vec::Vec;
 
 use crate::arena::{Arena, Handle};
 use crate::cli::Config;
@@ -36,12 +36,11 @@ pub fn new(env: Env) -> Fold {
     let path =
         &config.target.to_string_lossy()[..config.target.to_string_lossy().rfind('/').unwrap()];
 
-    let mut search_path = Vec::new();
-    search_path.push(path.to_owned());
+    let search_path = Vec::from(&[path.to_owned()]);
 
     Fold {
         config,
-        search_path: search_path,
+        search_path,
         phases: Vec::new(),
     }
 }
@@ -125,7 +124,14 @@ impl Fold {
 
             match filter {
                 ItemFilter::Object(_) => {
-                    module.process_object(obj, manifold);
+                    if let Err(err) = module.process_object(obj, manifold) {
+                        log::error!(
+                            "Unable to process object {:?} with module {}: {err:#?}",
+                            manifold.objects.get(obj).map(|o| o.display_path()),
+                            module.name()
+                        );
+                        panic!();
+                    }
                 }
                 ItemFilter::Segment(segment, _) => {
                     // *cries in functional programming, but borrow checker is angry*
@@ -133,7 +139,15 @@ impl Fold {
                     while let Some(handle) = manifold[obj].segments.get(idx) {
                         idx += 1;
                         if manifold[*handle].tag == segment.tag {
-                            module.process_segment(*handle, manifold);
+                            if let Err(err) = module.process_segment(*handle, manifold) {
+                                log::error!(
+                                    "Unable to process segment #{} of object {:?} with module {}: {err:#?}",
+                                    idx,
+                                    manifold.objects.get(obj).map(|o| o.display_path()),
+                                    module.name()
+                                );
+                                panic!();
+                            }
                         }
                     }
                 }
@@ -142,7 +156,15 @@ impl Fold {
                     while let Some(handle) = manifold[obj].sections.get(idx) {
                         idx += 1;
                         if manifold[*handle].tag == section.tag {
-                            module.process_section(*handle, manifold);
+                            if let Err(err) = module.process_section(*handle, manifold) {
+                                log::error!(
+                                    "Unable to process section #{} of object {:?} with module {}: {err:#?}",
+                                    idx,
+                                    manifold.objects.get(obj).map(|o| o.display_path()),
+                                    module.name()
+                                );
+                                panic!();
+                            }
                         }
                     }
                 }

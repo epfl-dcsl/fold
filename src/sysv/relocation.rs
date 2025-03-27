@@ -1,4 +1,4 @@
-use core::ffi::CStr;
+use alloc::boxed::Box;
 use core::slice;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_RELATIVE};
@@ -45,7 +45,11 @@ impl Module for SysvReloc {
         "sysv-reloc"
     }
 
-    fn process_section(&mut self, section_handle: Handle<crate::Section>, manifold: &mut Manifold) {
+    fn process_section(
+        &mut self,
+        section_handle: Handle<crate::Section>,
+        manifold: &mut Manifold,
+    ) -> Result<(), Box<dyn core::fmt::Debug>> {
         log::info!("Process relocation...");
 
         let section = manifold.sections.get(section_handle).unwrap();
@@ -78,15 +82,15 @@ impl Module for SysvReloc {
                         .nth(sym as usize)
                         .unwrap();
 
-                    let strtab = manifold.get_section_link(dynsym).unwrap();
-
                     let name = manifold
-                        .read_symbol_value(strtab, dynsym_entry.st_name as usize)
+                        .get_section_link(dynsym)
+                        .unwrap()
+                        .as_string_table()?
+                        .get_symbol(dynsym_entry.st_name as usize)
                         .unwrap();
 
-                    rela.r_info as u32;
-
-                    for (_, lib_obj) in manifold.objects.enumerate().filter(|s| s.0 != section.obj)
+                    'find_symbol: for (_, lib_obj) in
+                        manifold.objects.enumerate().filter(|s| s.0 != section.obj)
                     {
                         for lib_section in &lib_obj.sections {
                             let lib_section = manifold.sections.get(*lib_section).unwrap();
@@ -117,10 +121,10 @@ impl Module for SysvReloc {
                             unsafe {
                                 core::ptr::copy_nonoverlapping(
                                     (lib_content + start) as *const u8,
-                                    addr as *mut u8,
+                                    addr,
                                     lib_sym.st_size as usize,
                                 );
-                                return;
+                                break 'find_symbol;
                             }
                         }
                     }
@@ -131,5 +135,7 @@ impl Module for SysvReloc {
                 _ => panic!("unknown rela type {:x}", r#type),
             };
         }
+
+        Ok(())
     }
 }

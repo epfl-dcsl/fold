@@ -1,9 +1,13 @@
 use alloc::ffi::CString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::ffi::{CStr, FromBytesUntilNulError};
+
+use goblin::elf::section_header::SHT_STRTAB;
 
 use crate::arena::Handle;
 use crate::elf::{cst, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
+use crate::error::FoldError;
 use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
 use crate::filters::ObjectFilter;
@@ -232,6 +236,27 @@ impl Section {
             info: header.sh_info,
             entity_size: header.sh_entsize as usize,
         }
+    }
+
+    pub fn as_string_table<'a>(&'a self) -> Result<StringTableSection<'a>, FoldError> {
+        if self.tag == SHT_STRTAB {
+            Ok(StringTableSection { section: self })
+        } else {
+            Err(FoldError::InvalidSectionCast {
+                expected: SHT_STRTAB,
+                actual: self.tag,
+            })
+        }
+    }
+}
+
+pub struct StringTableSection<'a> {
+    pub section: &'a Section,
+}
+
+impl<'a> StringTableSection<'a> {
+    pub fn get_symbol(&self, index: usize) -> Result<&'a CStr, FromBytesUntilNulError> {
+        CStr::from_bytes_until_nul(&self.section.mapping.bytes()[(self.section.offset + index)..])
     }
 }
 

@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::arch::asm;
 
@@ -24,7 +25,11 @@ impl Module for SysvStart {
         "sysv-start"
     }
 
-    fn process_object(&mut self, obj: Handle<crate::Object>, manifold: &mut Manifold) {
+    fn process_object(
+        &mut self,
+        obj: Handle<crate::Object>,
+        manifold: &mut Manifold,
+    ) -> Result<(), Box<dyn core::fmt::Debug>> {
         let offset = manifold
             .objects
             .get(obj)

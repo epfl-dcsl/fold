@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use core::ffi::c_void;
 
 use rustix::mm::{self, MprotectFlags, ProtFlags};
@@ -25,13 +26,17 @@ impl Module for SysvProtect {
         "sysv-protect"
     }
 
-    fn process_segment(&mut self, segment: Handle<Segment>, fold: &mut Manifold) {
+    fn process_segment(
+        &mut self,
+        segment: Handle<Segment>,
+        fold: &mut Manifold,
+    ) -> Result<(), Box<dyn core::fmt::Debug>> {
         log::info!("Protecting segment...");
 
         let segment = fold.segments.get(segment).unwrap();
         if let Some(mapping) = segment.loaded_mapping.as_ref() {
             if segment.mem_size == 0 {
-                return;
+                return Ok(());
             }
 
             unsafe {
@@ -50,5 +55,7 @@ impl Module for SysvProtect {
                 );
             }
         }
+
+        Ok(())
     }
 }

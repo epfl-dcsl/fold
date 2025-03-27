@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use alloc::sync::Arc;
 use core::ffi::c_void;
 
@@ -27,14 +28,17 @@ impl Module for SysvLoader {
         "sysv-loader"
     }
 
-    fn process_segment(&mut self, segment: Handle<Segment>, fold: &mut Manifold) {
-        
+    fn process_segment(
+        &mut self,
+        segment: Handle<Segment>,
+        fold: &mut Manifold,
+    ) -> Result<(), Box<dyn core::fmt::Debug>> {
         let s = &fold.segments[segment];
         let o = fold.objects.get_mut(s.obj).unwrap();
         log::info!("Loading segment of {}...", o.display_path());
 
         if s.mem_size == 0 {
-            return;
+            return Ok(());
         }
 
         let new_mapping = unsafe {
@@ -92,5 +96,7 @@ impl Module for SysvLoader {
         };
 
         fold.segments[segment].loaded_mapping = Some(new_mapping);
+
+        Ok(())
     }
 }
