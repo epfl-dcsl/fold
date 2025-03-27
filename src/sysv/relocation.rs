@@ -2,9 +2,7 @@ use alloc::boxed::Box;
 use core::slice;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_RELATIVE};
-use goblin::elf::section_header::SHT_DYNSYM;
 use goblin::elf64::reloc::Rela;
-use goblin::elf64::sym::Sym;
 use log::info;
 
 use crate::elf::ElfItemIterator;

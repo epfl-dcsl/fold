@@ -1,7 +1,7 @@
 use alloc::ffi::CString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use core::ffi::{CStr, FromBytesUntilNulError};
+use core::ffi::CStr;
 
 use goblin::elf::section_header::{SHT_DYNSYM, SHT_STRTAB};
 
