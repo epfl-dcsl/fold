@@ -63,11 +63,11 @@ impl Module for SysvReloc {
 
             match r#type {
                 R_X86_64_64 => {
-                    let dynsym = manifold.get_section_link(section).unwrap();
-
-                    let dynsym_entry = ElfItemIterator::<Sym>::from_section(dynsym)
-                        .nth(sym as usize)
-                        .unwrap();
+                    let dynsym_entry = manifold
+                        .get_section_link(section)
+                        .unwrap()
+                        .as_dynamic_symbol_table()?
+                        .get_entry(sym as usize)?;
 
                     apply_reloc!(
                         addr,
@@ -76,38 +76,35 @@ impl Module for SysvReloc {
                     );
                 }
                 R_X86_64_COPY => {
-                    let dynsym = manifold.get_section_link(section).unwrap();
-
-                    let dynsym_entry = ElfItemIterator::<Sym>::from_section(dynsym)
-                        .nth(sym as usize)
-                        .unwrap();
-
-                    let name = manifold
-                        .get_section_link(dynsym)
-                        .unwrap()
-                        .as_string_table()?
-                        .get_symbol(dynsym_entry.st_name as usize)
-                        .unwrap();
+                    let name = section
+                        .get_linked_section(manifold)?
+                        .as_dynamic_symbol_table()?
+                        .get_symbol(sym as usize, manifold)?;
 
                     'find_symbol: for (_, lib_obj) in
                         manifold.objects.enumerate().filter(|s| s.0 != section.obj)
                     {
                         for lib_section in &lib_obj.sections {
-                            let lib_section = manifold.sections.get(*lib_section).unwrap();
-
-                            if lib_section.tag != SHT_DYNSYM {
+                            // Get the section as DYNSYM, or skip if it has another type.
+                            let Ok(lib_section) = manifold
+                                .sections
+                                .get(*lib_section)
+                                .unwrap()
+                                .as_dynamic_symbol_table()
+                            else {
                                 continue;
-                            }
-                            let lib_strtab = manifold.get_section_link(lib_section).unwrap();
-                            let lib_sym = ElfItemIterator::<Sym>::from_section(lib_section)
-                                .find(|lib_sym| {
-                                    manifold
-                                        .read_symbol_value(lib_strtab, lib_sym.st_name as usize)
-                                        .unwrap()
-                                        == name
-                                })
-                                .unwrap();
+                            };
 
+                            // Try to find a symbol with the corresponding name, or skip if it is not found.
+                            let Some((lib_sym, _)) = lib_section
+                                .symbol_iter(manifold)
+                                .filter_map(Result::ok)
+                                .find(|(_, sym)| *sym == name)
+                            else {
+                                continue;
+                            };
+
+                            // Locates the section containing the symbol.
                             let container = manifold
                                 .sections
                                 .get(lib_obj.sections[lib_sym.st_shndx as usize])
