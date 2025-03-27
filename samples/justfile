@@ -21,8 +21,8 @@ programs:
 	ld -rpath {{root_dir}} -pie --dynamic-linker {{linker}} hello-dl.o libmsg.so -o hello-dl
 
 	# hello.c 
-	gcc -o hello-c hello.c
-	patchelf --set-interpreter {{linker}} hello-c
+	gcc -o hello-c.o -c hello.c -fPIE
+	ld -rpath {{root_dir}} -pie --dynamic-linker {{linker}} hello-c.o -lc -o hello-c
 
 clean:
 	rm *.o -f

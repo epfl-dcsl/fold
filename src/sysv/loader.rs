@@ -74,6 +74,7 @@ impl Module for SysvLoader {
             log::info!("Segment loaded at 0x{:x}", mapping as usize);
 
             if s.vaddr == 0 && o.pie_load_offset.is_none() {
+                log::info!("{}", o.display_path());
                 o.pie_load_offset = Some(mapping as usize)
             }
 

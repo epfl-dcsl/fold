@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use core::slice;
 
-use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_RELATIVE};
+use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE};
 use goblin::elf64::reloc::Rela;
 use log::info;
 
@@ -123,6 +123,19 @@ impl Module for SysvReloc {
                             }
                         }
                     }
+                }
+                R_X86_64_JUMP_SLOT => {
+                    let dynsym_entry = manifold
+                        .get_section_link(section)
+                        .unwrap()
+                        .as_dynamic_symbol_table()?
+                        .get_entry(sym as usize)?;
+
+                    apply_reloc!(
+                        addr,
+                        (base as i64 + dynsym_entry.st_value as i64) as u64,
+                        8
+                    );
                 }
                 R_X86_64_RELATIVE => {
                     apply_reloc!(addr, (base as i64 + rela.r_addend) as u64, 8);
