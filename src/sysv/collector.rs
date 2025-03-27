@@ -6,13 +6,13 @@ use alloc::vec::Vec;
 use core::ffi::CStr;
 use core::fmt::Debug;
 
-use goblin::elf::dynamic::{DT_NEEDED, DT_STRTAB};
-use goblin::elf::section_header::SHT_DYNAMIC;
+use goblin::elf::dynamic::DT_NEEDED;
+use goblin::elf::section_header::{SHT_DYNAMIC, SHT_STRTAB};
 use goblin::elf64::dynamic::Dyn;
 use log::trace;
 use rustix::fs;
 
-use crate::elf::{ElfItemIterator, Tagged};
+use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::{file, Handle, Object};
@@ -72,32 +72,24 @@ impl Module for SysvCollector {
                 let sec = manifold.sections.get(*sec).unwrap();
 
                 if sec.tag == SHT_DYNAMIC {
-                    let mut strtab = None;
-                    let mut deps_idx = Vec::new();
+                    let linked_dynstr = manifold
+                        .get_section_link(sec)
+                        .expect("Missing Dynstr entry");
+                    assert!(linked_dynstr.tag == SHT_STRTAB);
 
-                    for dy in ElfItemIterator::<Dyn>::from_section(sec) {
-                        match dy.d_tag {
-                            DT_STRTAB => {
-                                log::info!("DT_STRTAB");
-                                strtab = Some(dy.d_val)
-                            },
-                            DT_NEEDED => {
-                                log::info!("DT_NEEDED");
-                                deps_idx.push(dy.d_val)
-                            },
-                            _ => {}
-                        }
-                    }
-
-                    let strtab = strtab.expect("Missing STRTAB entry");
-                    for idx in deps_idx {
-                        log::info!("{:?} {:?} {}", sec.mapping, strtab, idx);
+                    for idx in ElfItemIterator::<Dyn>::from_section(sec)
+                        .filter(|e| e.d_tag == DT_NEEDED)
+                        .map(|e| e.d_val)
+                    {
+                        log::info!("{:?} {:?} {}", sec.mapping, linked_dynstr.mapping, idx);
                         deps.push(CString::from(
                             CStr::from_bytes_until_nul(
-                                &sec.mapping.bytes()[(strtab + idx) as usize..],
+                                &linked_dynstr.mapping.bytes()
+                                    [(linked_dynstr.offset + idx as usize)..],
                             )
                             .expect("Invalid deps str"),
                         ));
+                        log::info!("{:?}", deps);
                     }
                 }
             }
