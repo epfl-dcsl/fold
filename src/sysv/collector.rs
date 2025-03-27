@@ -12,7 +12,7 @@ use goblin::elf64::dynamic::Dyn;
 use log::trace;
 use rustix::fs;
 
-use crate::elf::ElfItemIterator;
+use crate::elf::{ElfItemIterator, Tagged};
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::{file, Handle, Object};
@@ -69,7 +69,7 @@ impl Module for SysvCollector {
             trace!("[{}] Collecting from obj", obj.display_path());
 
             for sec in obj.sections.iter() {
-                let sec: &crate::Section = &manifold.sections[*sec];
+                let sec = manifold.sections.get(*sec).unwrap();
 
                 if sec.tag == SHT_DYNAMIC {
                     let mut strtab = None;
@@ -77,14 +77,21 @@ impl Module for SysvCollector {
 
                     for dy in ElfItemIterator::<Dyn>::from_section(sec) {
                         match dy.d_tag {
-                            DT_STRTAB => strtab = Some(dy.d_val),
-                            DT_NEEDED => deps_idx.push(dy.d_val),
+                            DT_STRTAB => {
+                                log::info!("DT_STRTAB");
+                                strtab = Some(dy.d_val)
+                            },
+                            DT_NEEDED => {
+                                log::info!("DT_NEEDED");
+                                deps_idx.push(dy.d_val)
+                            },
                             _ => {}
                         }
                     }
 
                     let strtab = strtab.expect("Missing STRTAB entry");
                     for idx in deps_idx {
+                        log::info!("{:?} {:?} {}", sec.mapping, strtab, idx);
                         deps.push(CString::from(
                             CStr::from_bytes_until_nul(
                                 &sec.mapping.bytes()[(strtab + idx) as usize..],

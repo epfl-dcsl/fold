@@ -20,9 +20,13 @@ programs:
 	ld -shared msg.o -o libmsg.so
 	ld -rpath {{root_dir}} -pie --dynamic-linker {{linker}} hello-dl.o libmsg.so -o hello-dl
 
+	# hello.c 
+	gcc -o hello-c hello.c
+	patchelf --set-interpreter {{linker}} hello-c
+
 clean:
 	rm *.o -f
 	rm *.so -f
-	rm hello hello-dl hello-pie hello-mov-pie -f
+	rm hello hello-dl hello-pie hello-mov-pie hello-c -f
 
 # vim: set ft=make :
