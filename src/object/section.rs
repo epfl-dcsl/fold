@@ -1,5 +1,3 @@
-// ———————————————————————————————— Sections ———————————————————————————————— //
-
 use core::ffi::CStr;
 
 use alloc::sync::Arc;
@@ -20,7 +18,8 @@ macro_rules! derive_sectiont {
 }
 
 macro_rules! as_section {
-    ($fn:ident,$struc:tt,$tag:expr) => {
+    ($fn:ident,$struc:tt,$tag:expr,$name:literal) => {
+        #[doc = concat!("Creates a wrapper around this section to use is as a ", $name, " section.")]
         pub fn $fn(&self) -> Result<$struc, FoldError> {
             if self.tag == $tag {
                 Ok($struc { section: self })
@@ -34,6 +33,9 @@ macro_rules! as_section {
     };
 }
 
+/// Representation of an ELF Section in the Manifold.
+///
+/// All the attributes of the section can be accessed directly. For more complex manipulation, the `as_*` methods can be used to create tag-checked wrappers around the section.
 pub struct Section {
     /// The mapping backing this section.
     pub mapping: Arc<Mapping>,
@@ -93,15 +95,27 @@ impl Section {
         }
     }
 
-    as_section!(as_string_table, StringTableSection, SHT_STRTAB);
-    as_section!(as_dynamic_symbol_table, DynamicSymbolSection, SHT_DYNSYM);
+    as_section!(
+        as_string_table,
+        StringTableSection,
+        SHT_STRTAB,
+        "string table"
+    );
+    as_section!(
+        as_dynamic_symbol_table,
+        DynamicSymbolSection,
+        SHT_DYNSYM,
+        "dynamic symbol table"
+    );
 }
 
 // ———————————————————————————————— SectionTrait ————————————————————————————————— //
 
+/// Common trait for all sections wrappers to group general functions.
 pub trait SectionT {
     fn section(&self) -> &Section;
 
+    /// Return the section which index is stored in `link`, fetching it from the Manifold.
     fn get_linked_section<'a>(&'_ self, manifold: &'a Manifold) -> Result<&'a Section, FoldError> {
         let obj = manifold.objects.get(self.section().obj).unwrap();
 
@@ -111,12 +125,10 @@ pub trait SectionT {
             .ok_or(FoldError::MissingLinkedSection)
     }
 
+    /// Return the name of the section stored in the `.shstrtab` section.
     fn get_display_name<'a>(&self, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
         let obj = manifold.objects.get(self.section().obj).unwrap();
-        manifold
-            .sections
-            .get(obj.sections[obj.e_shstrndx as usize])
-            .expect("Section not found")
+        manifold.sections[obj.sections[obj.e_shstrndx as usize]]
             .as_string_table()?
             .get_symbol(self.section().name as usize)
     }
@@ -130,12 +142,14 @@ impl SectionT for Section {
 
 // ———————————————————————————————— StringTableSection ————————————————————————————————— //
 
+/// Wrapper over a string table section (`STRTAB`), exposing extra methods to manipulate the table.
 pub struct StringTableSection<'a> {
     pub section: &'a Section,
 }
 derive_sectiont!(StringTableSection<'_>);
 
 impl<'a> StringTableSection<'a> {
+    /// Returns the symbol at the given offset in the table.
     pub fn get_symbol(&self, index: usize) -> Result<&'a CStr, FoldError> {
         CStr::from_bytes_until_nul(&self.section.mapping.bytes()[(self.section.offset + index)..])
             .map_err(|_| FoldError::InvalidString)
@@ -144,12 +158,14 @@ impl<'a> StringTableSection<'a> {
 
 // ———————————————————————————————— DynamicSymbolSection ————————————————————————————————— //
 
+/// Wrapper over a string table section (`DYNSYM`), exposing extra methods to query the symbols.
 pub struct DynamicSymbolSection<'a> {
     pub section: &'a Section,
 }
 derive_sectiont!(DynamicSymbolSection<'_>);
 
 impl<'a> DynamicSymbolSection<'a> {
+    /// Return the `DYNSYM` entry at the given index.
     pub fn get_entry(&self, index: usize) -> Result<goblin::elf::sym::sym64::Sym, FoldError> {
         self.entry_iter()
             .nth(index)
@@ -157,6 +173,7 @@ impl<'a> DynamicSymbolSection<'a> {
             .ok_or(FoldError::OutOfBounds)
     }
 
+    /// Return the symbol represented by the `DYNSYM` entry at the given index.
     pub fn get_symbol(&self, index: usize, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
         let entry = self.get_entry(index)?;
 
@@ -166,10 +183,12 @@ impl<'a> DynamicSymbolSection<'a> {
             .get_symbol(entry.st_name as usize)
     }
 
+    /// Create an iterator over all the `DYNSYM` entries of the section.
     pub fn entry_iter(&self) -> impl Iterator<Item = &goblin::elf::sym::sym64::Sym> {
         ElfItemIterator::<goblin::elf::sym::sym64::Sym>::from_section(self.section)
     }
 
+    /// Create an iterator over all the symbols referenced by the section, and their corresponding `DYNSYM` entries.
     pub fn symbol_iter(
         &self,
         manifold: &'a Manifold,
