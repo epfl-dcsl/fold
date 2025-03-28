@@ -65,9 +65,8 @@ impl Module for SysvReloc {
 
             match r#type {
                 R_X86_64_64 => {
-                    let dynsym_entry = manifold
-                        .get_section_link(section)
-                        .unwrap()
+                    let dynsym_entry = section
+                        .get_linked_section(manifold)?
                         .as_dynamic_symbol_table()?
                         .get_entry(sym as usize)?;
 
@@ -129,9 +128,8 @@ impl Module for SysvReloc {
                     }
                 }
                 R_X86_64_JUMP_SLOT => {
-                    let dynsym_entry = manifold
-                        .get_section_link(section)
-                        .unwrap()
+                    let dynsym_entry = section
+                        .get_linked_section(manifold)?
                         .as_dynamic_symbol_table()?
                         .get_entry(sym as usize)?;
 

@@ -14,6 +14,12 @@ impl From<SysvError> for Box<dyn core::fmt::Debug> {
     }
 }
 
+impl From<FoldError> for SysvError {
+    fn from(value: FoldError) -> Self {
+        SysvError::FoldError(value)
+    }
+}
+
 impl From<FoldError> for Box<dyn core::fmt::Debug> {
     fn from(value: FoldError) -> Self {
         Box::new(SysvError::FoldError(value))

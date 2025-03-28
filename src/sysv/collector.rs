@@ -7,7 +7,7 @@ use core::ffi::CStr;
 use core::fmt::Debug;
 
 use goblin::elf::dynamic::DT_NEEDED;
-use goblin::elf::section_header::{SHT_DYNAMIC, SHT_STRTAB};
+use goblin::elf::section_header::SHT_DYNAMIC;
 use goblin::elf64::dynamic::Dyn;
 use log::trace;
 use rustix::fs;
@@ -15,6 +15,8 @@ use rustix::fs;
 use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
 use crate::module::Module;
+use crate::object::section::SectionT;
+use crate::sysv::error::SysvError;
 use crate::{file, Handle, Object};
 
 #[derive(Clone)]
@@ -62,7 +64,10 @@ impl Module for SysvCollector {
         obj: Handle<Object>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
-        fn read_deps(obj: Handle<Object>, manifold: &mut Manifold) -> Vec<CString> {
+        fn read_deps(
+            obj: Handle<Object>,
+            manifold: &mut Manifold,
+        ) -> Result<Vec<CString>, SysvError> {
             let mut deps = Vec::new();
             let obj = &manifold[obj];
 
@@ -72,10 +77,7 @@ impl Module for SysvCollector {
                 let sec = manifold.sections.get(*sec).unwrap();
 
                 if sec.tag == SHT_DYNAMIC {
-                    let linked_dynstr = manifold
-                        .get_section_link(sec)
-                        .expect("Missing Dynstr entry");
-                    assert!(linked_dynstr.tag == SHT_STRTAB);
+                    let linked_dynstr = sec.get_linked_section(manifold)?;
 
                     for idx in ElfItemIterator::<Dyn>::from_section(sec)
                         .filter(|e| e.d_tag == DT_NEEDED)
@@ -92,7 +94,7 @@ impl Module for SysvCollector {
                 }
             }
 
-            deps
+            Ok(deps)
         }
 
         let mut deps: Vec<SysvCollectorEntry> =
@@ -103,7 +105,7 @@ impl Module for SysvCollector {
 
         let mut queue = Vec::new();
 
-        queue.extend(read_deps(obj, manifold));
+        queue.extend(read_deps(obj, manifold)?);
 
         while let Some(filename) = queue.pop() {
             if deps.iter().any(|e| e.name == filename) {
@@ -127,7 +129,7 @@ impl Module for SysvCollector {
                 obj,
             });
 
-            queue.extend(read_deps(obj, manifold));
+            queue.extend(read_deps(obj, manifold)?);
         }
 
         manifold.add_shared(

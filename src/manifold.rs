@@ -6,7 +6,6 @@ use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::any::{Any, TypeId};
-use core::ffi::{CStr, FromBytesUntilNulError};
 use core::ops::Index;
 
 use crate::arena::{Arena, Handle};
@@ -87,19 +86,6 @@ impl Manifold {
 
     pub fn add_search_paths(&mut self, paths: Vec<String>) {
         self.search_paths.extend(paths);
-    }
-
-    pub fn get_section_link(&self, section: &Section) -> Option<&Section> {
-        let o = self.objects.get(section.obj).unwrap();
-        self.sections.get(o.sections[section.link as usize])
-    }
-
-    pub fn read_symbol_value<'a>(
-        &self,
-        section: &'a Section,
-        index: usize,
-    ) -> Result<&'a CStr, FromBytesUntilNulError> {
-        CStr::from_bytes_until_nul(&section.mapping.bytes()[(section.offset + index)..])
     }
 }
 
