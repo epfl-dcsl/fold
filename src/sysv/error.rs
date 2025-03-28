@@ -5,6 +5,7 @@ use crate::error::FoldError;
 #[derive(Debug)]
 pub enum SysvError {
     FoldError(FoldError),
+    RelaSectionWithoutVirtualAdresses,
     Other,
 }
 

@@ -74,7 +74,7 @@ impl Module for SysvCollector {
             trace!("[{}] Collecting from obj", obj.display_path());
 
             for sec in obj.sections.iter() {
-                let sec = manifold.sections.get(*sec).unwrap();
+                let sec = &manifold.sections[*sec];
 
                 if sec.tag == SHT_DYNAMIC {
                     let linked_dynstr = sec.get_linked_section(manifold)?;

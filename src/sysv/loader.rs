@@ -34,7 +34,7 @@ impl Module for SysvLoader {
         fold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
         let s = &fold.segments[segment];
-        let o = fold.objects.get_mut(s.obj).unwrap();
+        let o = &mut fold.objects[s.obj];
         log::info!("Loading segment of {}...", o.display_path());
 
         if s.mem_size == 0 {

@@ -30,14 +30,9 @@ impl Module for SysvStart {
         obj: Handle<crate::Object>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
-        let offset = manifold
-            .objects
-            .get(obj)
-            .unwrap()
-            .pie_load_offset
-            .unwrap_or(0);
-
-        let entry = manifold.objects[obj].header().e_entry + offset as u64;
+        let obj = &manifold.objects[obj];
+        let offset = obj.pie_load_offset.unwrap_or(0);
+        let entry = obj.header().e_entry + offset as u64;
 
         let stack = build_stack();
 

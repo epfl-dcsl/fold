@@ -32,8 +32,8 @@ impl Module for SysvProtect {
         fold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
         log::info!("Protecting segment...");
+        let segment = &fold.segments[segment];
 
-        let segment = fold.segments.get(segment).unwrap();
         if let Some(mapping) = segment.loaded_mapping.as_ref() {
             if segment.mem_size == 0 {
                 return Ok(());

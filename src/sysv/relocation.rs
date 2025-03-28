@@ -9,6 +9,7 @@ use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::section::SectionT;
+use crate::sysv::error::SysvError;
 use crate::Handle;
 
 macro_rules! apply_reloc {
@@ -49,14 +50,16 @@ impl Module for SysvReloc {
         section_handle: Handle<crate::Section>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
-        let section = manifold.sections.get(section_handle).unwrap();
+        let section = &manifold.sections[section_handle];
         log::info!(
             "Process relocation of section {:?}...",
             section.get_display_name(manifold).unwrap_or_default()
         );
 
-        let obj = manifold.objects.get(section.obj).unwrap();
-        let base = obj.pie_load_offset.unwrap() as *mut u8;
+        let obj = &manifold.objects[section.obj];
+        let base = obj
+            .pie_load_offset
+            .ok_or(SysvError::RelaSectionWithoutVirtualAdresses)? as *mut u8;
 
         for rela in ElfItemIterator::<Rela>::from_section(section) {
             let addr = unsafe { base.add(rela.r_offset as usize) };
@@ -87,11 +90,7 @@ impl Module for SysvReloc {
                     {
                         for lib_section in &lib_obj.sections {
                             // Get the section as DYNSYM, or skip if it has another type.
-                            let Ok(lib_section) = manifold
-                                .sections
-                                .get(*lib_section)
-                                .unwrap()
-                                .as_dynamic_symbol_table()
+                            let Ok(lib_section) = manifold[*lib_section].as_dynamic_symbol_table()
                             else {
                                 continue;
                             };
@@ -106,10 +105,7 @@ impl Module for SysvReloc {
                             };
 
                             // Locates the section containing the symbol.
-                            let container = manifold
-                                .sections
-                                .get(lib_obj.sections[lib_sym.st_shndx as usize])
-                                .unwrap();
+                            let container = &manifold[lib_obj.sections[lib_sym.st_shndx as usize]];
 
                             let start =
                                 lib_sym.st_value as usize + container.offset - container.addr;
