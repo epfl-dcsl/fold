@@ -27,7 +27,7 @@ pub use driver::new;
 pub use env::Env;
 pub use exit::{exit, exit_error, Exit};
 pub use logging::init as init_logging;
-pub use object::{Object, Section, Segment};
+pub use object::{Object, section::Section, Segment};
 
 #[macro_export]
 macro_rules! entry {

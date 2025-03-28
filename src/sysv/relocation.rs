@@ -8,6 +8,7 @@ use log::info;
 use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
 use crate::module::Module;
+use crate::object::section::SectionT;
 use crate::Handle;
 
 macro_rules! apply_reloc {
@@ -48,9 +49,12 @@ impl Module for SysvReloc {
         section_handle: Handle<crate::Section>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
-        
         let section = manifold.sections.get(section_handle).unwrap();
-        log::info!("Process relocation of section {:?}...", section.get_display_name(manifold).unwrap());
+        log::info!(
+            "Process relocation of section {:?}...",
+            section.get_display_name(manifold).unwrap_or_default()
+        );
+
         let obj = manifold.objects.get(section.obj).unwrap();
         let base = obj.pie_load_offset.unwrap() as *mut u8;
 
@@ -131,11 +135,7 @@ impl Module for SysvReloc {
                         .as_dynamic_symbol_table()?
                         .get_entry(sym as usize)?;
 
-                    apply_reloc!(
-                        addr,
-                        (base as i64 + dynsym_entry.st_value as i64) as u64,
-                        8
-                    );
+                    apply_reloc!(addr, (base as i64 + dynsym_entry.st_value as i64) as u64, 8);
                 }
                 R_X86_64_RELATIVE => {
                     apply_reloc!(addr, (base as i64 + rela.r_addend) as u64, 8);

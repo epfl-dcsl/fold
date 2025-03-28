@@ -11,7 +11,8 @@ use core::ops::Index;
 
 use crate::arena::{Arena, Handle};
 use crate::file::Mapping;
-use crate::object::{Object, Section, Segment};
+use crate::object::{Object, Segment};
+use crate::Section;
 
 // ———————————————————————————————— Manifold ———————————————————————————————— //
 

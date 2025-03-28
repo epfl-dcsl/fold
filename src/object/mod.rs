@@ -1,17 +1,16 @@
 use alloc::ffi::CString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use core::ffi::CStr;
-
-use goblin::elf::section_header::{SHT_DYNSYM, SHT_STRTAB};
 
 use crate::arena::Handle;
 use crate::elf::{cst, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
-use crate::error::FoldError;
 use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
 use crate::filters::ObjectFilter;
 use crate::manifold::Manifold;
+use crate::Section;
+
+pub mod section;
 
 // ———————————————————————————————— Objects ————————————————————————————————— //
 
@@ -178,166 +177,6 @@ impl Segment {
             mem_size: header.p_memsz as usize,
             align: header.p_align as usize,
         }
-    }
-}
-
-// ———————————————————————————————— Sections ———————————————————————————————— //
-
-pub struct Section {
-    /// The mapping backing this section.
-    pub mapping: Arc<Mapping>,
-    /// The object containing this section.
-    pub obj: Handle<Object>,
-    /// Offset to the name of the section in the object's .shstrtab section.
-    /// TODO: store name directly.
-    pub name: u32,
-    /// The type of the section (sh_type).
-    pub tag: u32,
-    /// Section flags.
-    pub flags: usize,
-    /// Virtual address once loaded, for loadable sections.
-    pub addr: usize,
-    /// Offset of the section in the file.
-    pub offset: usize,
-    /// Size of the section in the file.
-    pub size: usize,
-    /// Required alignment.
-    pub alig: usize,
-    /// Link to an associated section.
-    /// TODO: store a handle instead
-    pub link: u32,
-    /// Extra information about the section.
-    pub info: u32,
-    /// Size of the elements contained in the section, if applicable.
-    pub entity_size: usize,
-}
-
-impl Section {
-    pub(crate) fn new(
-        header: &SectionHeader,
-        obj_idx: Handle<Object>,
-        manifold: &Manifold,
-    ) -> Self {
-        let obj = &manifold[obj_idx];
-        let mapping = &obj.mapping;
-
-        // TODO: check alignment:
-        // - Must be a power of 2
-        // - Must be respected in the file
-        let _addr_align = header.sh_addralign;
-
-        Self {
-            mapping: mapping.clone(),
-            obj: obj_idx,
-            name: header.sh_name,
-            tag: header.sh_type,
-            flags: header.sh_flags as usize,
-            addr: header.sh_addr as usize,
-            offset: header.sh_offset as usize,
-            size: header.sh_size as usize,
-            alig: header.sh_addralign as usize,
-            link: header.sh_link,
-            info: header.sh_info,
-            entity_size: header.sh_entsize as usize,
-        }
-    }
-
-    pub fn as_string_table<'a>(&'a self) -> Result<StringTableSection<'a>, FoldError> {
-        if self.tag == SHT_STRTAB {
-            Ok(StringTableSection { section: self })
-        } else {
-            Err(FoldError::InvalidSectionCast {
-                expected: SHT_STRTAB,
-                actual: self.tag,
-            })
-        }
-    }
-
-    pub fn as_dynamic_symbol_table<'a>(&'a self) -> Result<DynamicSymbolSection<'a>, FoldError> {
-        if self.tag == SHT_DYNSYM {
-            Ok(DynamicSymbolSection { section: self })
-        } else {
-            Err(FoldError::InvalidSectionCast {
-                expected: SHT_DYNSYM,
-                actual: self.tag,
-            })
-        }
-    }
-
-    pub fn get_linked_section<'a>(
-        &'_ self,
-        manifold: &'a Manifold,
-    ) -> Result<&'a Section, FoldError> {
-        let obj = manifold.objects.get(self.obj).unwrap();
-
-        manifold
-            .sections
-            .get(obj.sections[self.link as usize])
-            .ok_or(FoldError::MissingLinkedSection)
-    }
-
-    pub fn get_display_name<'a>(&self, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
-        let obj = manifold.objects.get(self.obj).unwrap();
-        manifold
-            .sections
-            .get(obj.sections[obj.e_shstrndx as usize])
-            .expect("Section not found")
-            .as_string_table()?
-            .get_symbol(self.name as usize)
-    }
-}
-
-// ———————————————————————————————— StringTableSection ————————————————————————————————— //
-
-pub struct StringTableSection<'a> {
-    pub section: &'a Section,
-}
-
-impl<'a> StringTableSection<'a> {
-    pub fn get_symbol(&self, index: usize) -> Result<&'a CStr, FoldError> {
-        CStr::from_bytes_until_nul(&self.section.mapping.bytes()[(self.section.offset + index)..])
-            .map_err(|_| FoldError::InvalidString)
-    }
-}
-
-// ———————————————————————————————— DynamicSymbolSection ————————————————————————————————— //
-
-pub struct DynamicSymbolSection<'a> {
-    pub section: &'a Section,
-}
-
-impl<'a> DynamicSymbolSection<'a> {
-    pub fn get_entry(&self, index: usize) -> Result<goblin::elf::sym::sym64::Sym, FoldError> {
-        self.entry_iter()
-            .nth(index)
-            .copied()
-            .ok_or(FoldError::OutOfBounds)
-    }
-
-    pub fn get_symbol(&self, index: usize, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
-        let entry = self.get_entry(index)?;
-
-        self.section
-            .get_linked_section(manifold)?
-            .as_string_table()?
-            .get_symbol(entry.st_name as usize)
-    }
-
-    pub fn entry_iter(&self) -> impl Iterator<Item = &goblin::elf::sym::sym64::Sym> {
-        ElfItemIterator::<goblin::elf::sym::sym64::Sym>::from_section(self.section)
-    }
-
-    pub fn symbol_iter(
-        &self,
-        manifold: &'a Manifold,
-    ) -> impl Iterator<Item = Result<(&goblin::elf::sym::sym64::Sym, &CStr), FoldError>> {
-        self.entry_iter().map(|sym_entry| {
-            self.section
-                .get_linked_section(manifold)?
-                .as_string_table()?
-                .get_symbol(sym_entry.st_name as usize)
-                .map(|symbol| (sym_entry, symbol))
-        })
     }
 }
 

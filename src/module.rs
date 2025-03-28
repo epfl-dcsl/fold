@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 
 use crate::arena::Handle;
 use crate::manifold::Manifold;
-use crate::object::{Object, Section, Segment};
+use crate::object::{Object, section::Section, Segment};
 
 pub trait Module {
     fn name(&self) -> &'static str;
