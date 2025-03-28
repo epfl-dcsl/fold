@@ -1,16 +1,12 @@
-use alloc::boxed::Box;
-use core::slice;
-
-use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE};
-use goblin::elf64::reloc::Rela;
-use log::info;
-
 use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::section::SectionT;
 use crate::sysv::error::SysvError;
 use crate::Handle;
+use alloc::boxed::Box;
+use goblin::elf::reloc::*;
+use goblin::elf64::reloc::Rela;
 
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {
@@ -43,12 +39,14 @@ impl Module for SysvReloc {
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
         let section = &manifold.sections[section_handle];
+        let obj = &manifold.objects[section.obj];
+
         log::info!(
-            "Process relocation of section {:?}...",
-            section.get_display_name(manifold).unwrap_or_default()
+            "Process relocation of section {:?} for object {}...",
+            section.get_display_name(manifold).unwrap_or_default(),
+            obj.display_path()
         );
 
-        let obj = &manifold.objects[section.obj];
         let base = obj
             .pie_load_offset
             .ok_or(SysvError::RelaSectionWithoutVirtualAdresses)? as *mut u8;
@@ -66,7 +64,9 @@ impl Module for SysvReloc {
                 .get_entry(sym as usize)?
                 .st_value as i64;
 
+            // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
             match r#type {
+                R_X86_64_NONE => {}
                 R_X86_64_64 => {
                     apply_reloc!(addr, (s + a), u64);
                 }
@@ -114,13 +114,22 @@ impl Module for SysvReloc {
                         }
                     }
                 }
-                R_X86_64_JUMP_SLOT => {
+                R_X86_64_JUMP_SLOT | R_X86_64_GLOB_DAT => {
                     apply_reloc!(addr, s, u64);
+                }
+                R_X86_64_32 | R_X86_64_32S => {
+                    apply_reloc!(addr, (s + a), u32);
+                }
+                R_X86_64_16 => {
+                    apply_reloc!(addr, (s + a), u16);
+                }
+                R_X86_64_8 => {
+                    apply_reloc!(addr, (s + a), u8);
                 }
                 R_X86_64_RELATIVE => {
                     apply_reloc!(addr, (b + a), u64);
                 }
-                _ => panic!("unknown rela type {:x}", r#type),
+                _ => panic!("unknown rela type 0x{:x}", r#type),
             };
         }
 
