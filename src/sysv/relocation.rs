@@ -64,6 +64,26 @@ impl Module for SysvReloc {
                 .get_entry(sym as usize)?
                 .st_value as i64;
 
+            let got = obj
+                .sections
+                .iter()
+                .map(|h| &manifold.sections[*h])
+                .filter_map(|s| s.as_dynamic_symbol_table().ok())
+                .filter_map(|s| {
+                    s.symbol_iter(&manifold)
+                        .filter_map(Result::ok)
+                        .find(|(_, name)| name.to_str().is_ok_and(|n| n == "_GLOBAL_OFFSET_TABLE_"))
+                        .iter()
+                        .next()
+                        .map(|(entry, _)| (*entry).clone())
+                })
+                .next();
+            let g = if let Some(got) = got {
+                b + got.st_value as i64
+            } else {
+                0
+            };
+
             // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
             match r#type {
                 R_X86_64_NONE => {}
