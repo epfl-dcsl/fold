@@ -1,13 +1,18 @@
+use core::ffi::CStr;
+
+use alloc::borrow::ToOwned;
 use alloc::ffi::CString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use goblin::elf64::sym::Sym;
 
 use crate::arena::Handle;
 use crate::elf::{cst, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
+use crate::error::FoldError;
 use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
 use crate::filters::ObjectFilter;
-use crate::manifold::Manifold;
+use crate::manifold::{self, Manifold};
 use crate::Section;
 
 pub mod section;
@@ -125,6 +130,30 @@ impl Object {
 
     pub fn program_headers(&self) -> ElfItemIterator<ProgramHeader> {
         ElfItemIterator::new(self.raw(), self.e_phoff, self.e_phnum, self.e_phentsize)
+    }
+
+    pub fn find_symbol<'a>(
+        &'a self,
+        symbol: &'_ CStr,
+        manifold: &'a Manifold,
+    ) -> Result<(&'a Section, Sym), FoldError> {
+        self.sections
+            .iter()
+            .map(|h| &manifold.sections[*h])
+            .filter_map(|s| s.as_symbol_table().ok())
+            .filter_map(|s| {
+                let entry = s
+                    .symbol_iter(&manifold)
+                    .filter_map(Result::ok)
+                    .find(|(_, name)| *name == symbol)
+                    .iter()
+                    .next()
+                    .map(|(entry, _)| (*entry).clone());
+
+                entry.map(|e| (s.section, e))
+            })
+            .next()
+            .ok_or_else(|| FoldError::SymbolNotFound(symbol.to_owned()))
     }
 }
 

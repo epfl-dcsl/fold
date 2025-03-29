@@ -1,3 +1,6 @@
+use core::ffi::CStr;
+use core::str::FromStr;
+
 use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
 use crate::module::Module;
@@ -5,6 +8,7 @@ use crate::object::section::SectionT;
 use crate::sysv::error::SysvError;
 use crate::Handle;
 use alloc::boxed::Box;
+use alloc::ffi::CString;
 use goblin::elf::reloc::*;
 use goblin::elf64::reloc::Rela;
 
@@ -51,38 +55,29 @@ impl Module for SysvReloc {
             .pie_load_offset
             .ok_or(SysvError::RelaSectionWithoutVirtualAdresses)? as *mut u8;
 
+        let b = base as i64;
+        let g = obj
+            .find_symbol(
+                CString::from_str("_GLOBAL_OFFSET_TABLE_")
+                    .unwrap()
+                    .as_c_str(),
+                manifold,
+            )
+            .map(|entry| b + entry.1.st_value as i64)
+            .unwrap_or_default();
+
         for rela in ElfItemIterator::<Rela>::from_section(section) {
             let addr = unsafe { base.add(rela.r_offset as usize) };
             let r#type = rela.r_info as u32;
             let sym = (rela.r_info >> 32) as u32;
 
-            let b = base as i64;
             let a = rela.r_addend as i64;
-            let s = b + section
+            let s = section
                 .get_linked_section(manifold)?
                 .as_dynamic_symbol_table()?
-                .get_entry(sym as usize)?
-                .st_value as i64;
-
-            let got = obj
-                .sections
-                .iter()
-                .map(|h| &manifold.sections[*h])
-                .filter_map(|s| s.as_dynamic_symbol_table().ok())
-                .filter_map(|s| {
-                    s.symbol_iter(&manifold)
-                        .filter_map(Result::ok)
-                        .find(|(_, name)| name.to_str().is_ok_and(|n| n == "_GLOBAL_OFFSET_TABLE_"))
-                        .iter()
-                        .next()
-                        .map(|(entry, _)| (*entry).clone())
-                })
-                .next();
-            let g = if let Some(got) = got {
-                b + got.st_value as i64
-            } else {
-                0
-            };
+                .get_entry(sym as usize)
+                .map(|entry| b + entry.st_value as i64)
+                .unwrap_or_default();
 
             // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
             match r#type {
@@ -99,38 +94,24 @@ impl Module for SysvReloc {
                     'find_symbol: for (_, lib_obj) in
                         manifold.objects.enumerate().filter(|s| s.0 != section.obj)
                     {
-                        for lib_section in &lib_obj.sections {
-                            // Get the section as DYNSYM, or skip if it has another type.
-                            let Ok(lib_section) = manifold[*lib_section].as_dynamic_symbol_table()
-                            else {
-                                continue;
-                            };
+                        let Ok((_, lib_sym)) = lib_obj.find_symbol(name, manifold) else {
+                            continue;
+                        };
 
-                            // Try to find a symbol with the corresponding name, or skip if it is not found.
-                            let Some((lib_sym, _)) = lib_section
-                                .symbol_iter(manifold)
-                                .filter_map(Result::ok)
-                                .find(|(_, sym)| *sym == name)
-                            else {
-                                continue;
-                            };
+                        // Locates the section containing the symbol.
+                        let container = &manifold[lib_obj.sections[lib_sym.st_shndx as usize]];
 
-                            // Locates the section containing the symbol.
-                            let container = &manifold[lib_obj.sections[lib_sym.st_shndx as usize]];
+                        let start = lib_sym.st_value as usize + container.offset - container.addr;
 
-                            let start =
-                                lib_sym.st_value as usize + container.offset - container.addr;
+                        let lib_content = container.mapping.bytes().as_ptr() as usize;
 
-                            let lib_content = container.mapping.bytes().as_ptr() as usize;
-
-                            unsafe {
-                                core::ptr::copy_nonoverlapping(
-                                    (lib_content + start) as *const u8,
-                                    addr,
-                                    lib_sym.st_size as usize,
-                                );
-                                break 'find_symbol;
-                            }
+                        unsafe {
+                            core::ptr::copy_nonoverlapping(
+                                (lib_content + start) as *const u8,
+                                addr,
+                                lib_sym.st_size as usize,
+                            );
+                            break 'find_symbol;
                         }
                     }
                 }

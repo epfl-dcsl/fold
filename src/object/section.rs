@@ -103,8 +103,14 @@ impl Section {
     );
     as_section!(
         as_dynamic_symbol_table,
-        DynamicSymbolSection,
+        SymbolTableSection,
         SHT_DYNSYM,
+        "dynamic symbol table"
+    );
+    as_section!(
+        as_symbol_table,
+        SymbolTableSection,
+        SHT_SYMTAB,
         "dynamic symbol table"
     );
 }
@@ -159,12 +165,12 @@ impl<'a> StringTableSection<'a> {
 // ———————————————————————————————— DynamicSymbolSection ————————————————————————————————— //
 
 /// Wrapper over a string table section (`DYNSYM`), exposing extra methods to query the symbols.
-pub struct DynamicSymbolSection<'a> {
+pub struct SymbolTableSection<'a> {
     pub section: &'a Section,
 }
-derive_sectiont!(DynamicSymbolSection<'_>);
+derive_sectiont!(SymbolTableSection<'_>);
 
-impl<'a> DynamicSymbolSection<'a> {
+impl<'a> SymbolTableSection<'a> {
     /// Return the `DYNSYM` entry at the given index.
     pub fn get_entry(&self, index: usize) -> Result<goblin::elf::sym::sym64::Sym, FoldError> {
         self.entry_iter()
