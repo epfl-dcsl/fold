@@ -1,5 +1,7 @@
-use core::ffi::CStr;
 use core::str::FromStr;
+
+use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE};
+use goblin::elf64::reloc::{self, Rela};
 
 use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
@@ -10,7 +12,6 @@ use crate::Handle;
 use alloc::boxed::Box;
 use alloc::ffi::CString;
 use goblin::elf::reloc::*;
-use goblin::elf64::reloc::Rela;
 
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {
@@ -68,8 +69,8 @@ impl Module for SysvReloc {
 
         for rela in ElfItemIterator::<Rela>::from_section(section) {
             let addr = unsafe { base.add(rela.r_offset as usize) };
-            let r#type = rela.r_info as u32;
-            let sym = (rela.r_info >> 32) as u32;
+            let r#type = reloc::r_type(rela.r_info);
+            let sym = reloc::r_sym(rela.r_info);
 
             let a = rela.r_addend as i64;
             let s = section

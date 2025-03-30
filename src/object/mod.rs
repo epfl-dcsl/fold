@@ -12,7 +12,7 @@ use crate::error::FoldError;
 use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
 use crate::filters::ObjectFilter;
-use crate::manifold::{self, Manifold};
+use crate::manifold::Manifold;
 use crate::Section;
 
 pub mod section;
