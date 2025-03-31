@@ -1,6 +1,8 @@
+use alloc::boxed::Box;
+use alloc::ffi::CString;
 use core::str::FromStr;
 
-use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE};
+use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE, *};
 use goblin::elf64::reloc::{self, Rela};
 
 use crate::elf::ElfItemIterator;
@@ -8,10 +10,7 @@ use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::section::SectionT;
 use crate::sysv::error::SysvError;
-use crate::Handle;
-use alloc::boxed::Box;
-use alloc::ffi::CString;
-use goblin::elf::reloc::*;
+use crate::{dbg, Handle};
 
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {
@@ -77,14 +76,13 @@ impl Module for SysvReloc {
                 .get_linked_section(manifold)?
                 .as_dynamic_symbol_table()?
                 .get_entry(sym as usize)
-                .map(|entry| b + entry.st_value as i64)
-                .unwrap_or_default();
+                .map(|entry| b + entry.st_value as i64);
 
             // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
             match r#type {
                 R_X86_64_NONE => {}
                 R_X86_64_64 => {
-                    apply_reloc!(addr, (s + a), u64);
+                    apply_reloc!(addr, (s? + a), u64);
                 }
                 R_X86_64_COPY => {
                     let name = section
@@ -117,16 +115,16 @@ impl Module for SysvReloc {
                     }
                 }
                 R_X86_64_JUMP_SLOT | R_X86_64_GLOB_DAT => {
-                    apply_reloc!(addr, s, u64);
+                    apply_reloc!(addr, s?, u64);
                 }
                 R_X86_64_32 | R_X86_64_32S => {
-                    apply_reloc!(addr, (s + a), u32);
+                    apply_reloc!(addr, (s? + a), u32);
                 }
                 R_X86_64_16 => {
-                    apply_reloc!(addr, (s + a), u16);
+                    apply_reloc!(addr, (s? + a), u16);
                 }
                 R_X86_64_8 => {
-                    apply_reloc!(addr, (s + a), u8);
+                    apply_reloc!(addr, (s? + a), u8);
                 }
                 R_X86_64_RELATIVE => {
                     apply_reloc!(addr, (b + a), u64);
