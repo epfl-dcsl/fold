@@ -84,7 +84,7 @@ impl Module for SysvReloc {
             match r#type {
                 R_X86_64_NONE => {}
                 R_X86_64_64 => {
-                    apply_reloc!(addr, (s? + a), u64);
+                    apply_reloc!(addr, s? + a, u64);
                 }
                 R_X86_64_COPY => {
                     let name = section
@@ -120,16 +120,16 @@ impl Module for SysvReloc {
                     apply_reloc!(addr, s?, u64);
                 }
                 R_X86_64_32 | R_X86_64_32S => {
-                    apply_reloc!(addr, (s? + a), u32);
+                    apply_reloc!(addr, s? + a, u32);
                 }
                 R_X86_64_16 => {
-                    apply_reloc!(addr, (s? + a), u16);
+                    apply_reloc!(addr, s? + a, u16);
                 }
                 R_X86_64_8 => {
-                    apply_reloc!(addr, (s? + a), u8);
+                    apply_reloc!(addr, s? + a, u8);
                 }
                 R_X86_64_RELATIVE => {
-                    apply_reloc!(addr, (b + a), u64);
+                    apply_reloc!(addr, b + a, u64);
                 }
                 _ => panic!("unknown rela type 0x{:x}", r#type),
             };
