@@ -73,7 +73,7 @@ impl Module for SysvReloc {
             let r#type = reloc::r_type(rela.r_info);
             let sym = reloc::r_sym(rela.r_info);
 
-            let a = rela.r_addend as i64;
+            let a = rela.r_addend;
             let s = section
                 .get_linked_section(manifold)?
                 .as_dynamic_symbol_table()?
