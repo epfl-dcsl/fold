@@ -14,6 +14,7 @@ use crate::{dbg, Handle};
 
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {
+        log::trace!("Relocate {:x?} to 0x{:x?}", $addr, $value);
         unsafe { core::ptr::write_unaligned($addr as *mut $type, $value as $type) };
     };
 }
@@ -56,7 +57,7 @@ impl Module for SysvReloc {
             .ok_or(SysvError::RelaSectionWithoutVirtualAdresses)? as *mut u8;
 
         let b = base as i64;
-        let g = obj
+        let g: i64 = obj
             .find_symbol(
                 CString::from_str("_GLOBAL_OFFSET_TABLE_")
                     .unwrap()
