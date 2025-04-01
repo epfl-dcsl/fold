@@ -10,12 +10,13 @@ use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::section::SectionT;
 use crate::sysv::error::SysvError;
-use crate::{dbg, Handle};
+use crate::Handle;
 
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {
-        log::trace!("Relocate {:x?} to 0x{:x?}", $addr, $value);
-        unsafe { core::ptr::write_unaligned($addr as *mut $type, $value as $type) };
+        let value = $value;
+        log::trace!("Relocate {:x?} to 0x{:x?}", $addr, value);
+        unsafe { core::ptr::write_unaligned($addr as *mut $type, value as $type) };
     };
 }
 
