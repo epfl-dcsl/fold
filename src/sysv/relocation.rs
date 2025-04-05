@@ -3,6 +3,7 @@ use alloc::ffi::CString;
 use core::str::FromStr;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE, *};
+use goblin::elf::section_header::SHN_UNDEF;
 use goblin::elf::sym::STB_WEAK;
 use goblin::elf64::reloc::{self, Rela};
 
@@ -16,6 +17,7 @@ use crate::Handle;
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {
         let value = $value;
+        // log::trace!("Relocate {:x?} to 0x{:x?}", $addr, value);
         unsafe { core::ptr::write_unaligned($addr as *mut $type, value as $type) };
     };
 }
@@ -74,11 +76,23 @@ impl Module for SysvReloc {
             let sym = reloc::r_sym(rela.r_info);
 
             let a = rela.r_addend;
-            let s = section
+            let s: Result<i64, crate::error::FoldError> = section
                 .get_linked_section(manifold)?
                 .as_dynamic_symbol_table()?
-                .get_entry(sym as usize)
-                .map(|entry| b + entry.st_value as i64);
+                .get_symbol_and_entry(sym as usize, &manifold)
+                .map(|(name, entry)| {
+                    if entry.st_shndx as u32 == SHN_UNDEF {
+                        let o = manifold
+                            .objects
+                            .enumerate()
+                            .filter(|o| o.0 != section.obj)
+                            .find_map(|o| o.1.find_symbol(name, manifold).ok())
+                            .unwrap();
+                        manifold[o.0.obj].pie_load_offset.unwrap() as i64 + o.1.st_value as i64
+                    } else {
+                        b + entry.st_value as i64
+                    }
+                });
 
             // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
             match r#type {

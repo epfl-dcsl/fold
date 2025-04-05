@@ -4,9 +4,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::ffi::CStr;
 
-use goblin::elf64::sym::Sym;
-use rustix::path::Arg;
-
+use goblin::elf64::sym::Sym; 
 use crate::arena::Handle;
 use crate::elf::{cst, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
 use crate::error::FoldError;
