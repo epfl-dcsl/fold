@@ -36,6 +36,8 @@ pub fn new(env: Env) -> Fold {
     let path =
         &config.target.to_string_lossy()[..config.target.to_string_lossy().rfind('/').unwrap()];
 
+    log::info!("adding cwd to path: {path}");
+
     let search_path = Vec::from(&[path.to_owned()]);
 
     Fold {
