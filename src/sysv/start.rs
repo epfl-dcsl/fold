@@ -37,14 +37,6 @@ impl Module for SysvStart {
         let stack = build_stack();
 
         unsafe {
-            // set_fs(self.tls.get_fs());
-
-            // log::info!("Calling {} initializer(s)", self.init_array.len());
-            // for f in &self.init_array {
-            //     log::debug!("Calling {:p}", *f);
-            //     f(argc, argv, envp);
-            // }
-
             log::info!("Jumping at 0x{:x}...", entry);
             jmp(entry as *const u8, stack.as_ptr(), stack.len() as u64);
         }
@@ -81,20 +73,6 @@ unsafe fn jmp(entry_point: *const u8, stack: *const u64, nb_items: u64) -> ! {
     );
 
     unreachable!();
-}
-
-unsafe fn set_fs(addr: usize) {
-    log::trace!("Set fs register to 0x{:x}", addr);
-    let syscall_number: u64 = 158; // arch_prctl syscall
-    let arch_set_fs: u64 = 0x1002; // set FS
-
-    asm!(
-        "syscall",
-        inout("rax") syscall_number => _,
-        in("rdi") arch_set_fs,
-        in("rsi") addr,
-        lateout("rcx") _, lateout("r11") _,
-    );
 }
 
 pub fn build_stack() -> Vec<u64> {
