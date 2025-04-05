@@ -1,6 +1,6 @@
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
-use core::ptr::{copy_nonoverlapping, null_mut};
+use core::{arch::asm, ptr::{copy_nonoverlapping, null_mut}};
 
 use rustix::mm::{mmap_anonymous, MapFlags, ProtFlags};
 
@@ -33,6 +33,9 @@ impl Module for SysvTls {
     ) -> Result<(), alloc::boxed::Box<dyn core::fmt::Debug>> {
         log::info!("setting up tls");
 
+        let tls = build_tls(Default::default());
+        unsafe { set_fs(tls) };
+
         Ok(())
     }
 }
@@ -52,7 +55,6 @@ fn build_tls(offsets: BTreeMap<usize, usize>) -> usize {
 
     unsafe {
         let bytes = build_tcb_head(location as usize, storage_size);
-        assert_eq!(bytes.len(), 52);
         copy_nonoverlapping(bytes.as_ptr(), location as *mut u8, bytes.len());
     }
 
@@ -79,4 +81,18 @@ fn build_tcb_head(addr: usize, storage_size: usize) -> Vec<u8> {
     block.extend(core::iter::repeat_n(0, block.capacity() - block.len()));
 
     block
+}
+
+unsafe fn set_fs(addr: usize) {
+    log::trace!("Set fs register to 0x{:x}", addr);
+    let syscall_number: u64 = 158; // arch_prctl syscall
+    let arch_set_fs: u64 = 0x1002; // set FS
+
+    asm!(
+        "syscall",
+        inout("rax") syscall_number => _,
+        in("rdi") arch_set_fs,
+        in("rsi") addr,
+        lateout("rcx") _, lateout("r11") _,
+    );
 }
