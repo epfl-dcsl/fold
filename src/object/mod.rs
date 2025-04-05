@@ -1,10 +1,11 @@
-use core::ffi::CStr;
-
 use alloc::borrow::ToOwned;
 use alloc::ffi::CString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::ffi::CStr;
+
 use goblin::elf64::sym::Sym;
+use rustix::path::Arg;
 
 use crate::arena::Handle;
 use crate::elf::{cst, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
@@ -143,12 +144,36 @@ impl Object {
             .filter_map(|s| s.as_symbol_table().ok())
             .filter_map(|s| {
                 let entry = s
-                    .symbol_iter(&manifold)
+                    .symbol_iter(manifold)
                     .filter_map(Result::ok)
                     .find(|(_, name)| *name == symbol)
                     .iter()
                     .next()
-                    .map(|(entry, _)| (*entry).clone());
+                    .map(|(entry, _)| **entry);
+
+                entry.map(|e| (s.section, e))
+            })
+            .next()
+            .ok_or_else(|| FoldError::SymbolNotFound(symbol.to_owned()))
+    }
+
+    pub fn find_dynamic_symbol<'a>(
+        &'a self,
+        symbol: &'_ CStr,
+        manifold: &'a Manifold,
+    ) -> Result<(&'a Section, Sym), FoldError> {
+        self.sections
+            .iter()
+            .map(|h| &manifold.sections[*h])
+            .filter_map(|s| s.as_dynamic_symbol_table().ok())
+            .filter_map(|s| {
+                let entry = s
+                    .symbol_iter(manifold)
+                    .filter_map(Result::ok)
+                    .find(|(_, name)| *name == symbol)
+                    .iter()
+                    .next()
+                    .map(|(entry, _)| **entry);
 
                 entry.map(|e| (s.section, e))
             })

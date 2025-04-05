@@ -61,7 +61,7 @@ impl Module for SysvLoader {
                     } else {
                         0
                     },
-                ProtFlags::WRITE,
+                ProtFlags::READ | ProtFlags::WRITE | ProtFlags::EXEC,
                 MapFlags::PRIVATE
                     | if addr == 0 {
                         MapFlags::empty()

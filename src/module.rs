@@ -2,7 +2,8 @@ use alloc::boxed::Box;
 
 use crate::arena::Handle;
 use crate::manifold::Manifold;
-use crate::object::{Object, section::Section, Segment};
+use crate::object::section::Section;
+use crate::object::{Object, Segment};
 
 pub trait Module {
     fn name(&self) -> &'static str;
@@ -49,6 +50,18 @@ pub trait Module {
         let _ = manifold;
         log::warn!(
             "Module '{}' does not implement 'process_section'",
+            self.name()
+        );
+
+        Ok(())
+    }
+
+    fn process_manifold(
+        &mut self,
+        _manifold: &mut Manifold,
+    ) -> Result<(), Box<dyn core::fmt::Debug>> {
+        log::warn!(
+            "Module '{}' does not implement 'process_manifold'",
             self.name()
         );
 

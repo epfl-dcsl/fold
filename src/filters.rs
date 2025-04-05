@@ -2,17 +2,19 @@ use core::fmt;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ItemFilter {
+    ManifoldFilter,
     Object(ObjectFilter),
     Segment(SegmentID, ObjectFilter),
     Section(SectionID, ObjectFilter),
 }
 
 impl ItemFilter {
-    pub fn object_filter(self) -> ObjectFilter {
+    pub fn object_filter(self) -> Option<ObjectFilter> {
         match self {
-            ItemFilter::Object(f) => f,
-            ItemFilter::Segment(_, f) => f,
-            ItemFilter::Section(_, f) => f,
+            ItemFilter::Object(f) | ItemFilter::Segment(_, f) | ItemFilter::Section(_, f) => {
+                Some(f)
+            }
+            ItemFilter::ManifoldFilter => None,
         }
     }
 }
@@ -107,6 +109,7 @@ impl ObjectFilter {
 impl fmt::Debug for ItemFilter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ManifoldFilter => write!(f, "[manifold]"),
             Self::Object(obj) => write!(f, "[{obj:?}]"),
             Self::Segment(seg, obj) => write!(f, "[{seg:?}, {obj:?}]"),
             Self::Section(sec, obj) => write!(f, "[{sec:?}, {obj:?}]"),

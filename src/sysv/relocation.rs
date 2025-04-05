@@ -3,6 +3,7 @@ use alloc::ffi::CString;
 use core::str::FromStr;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE, *};
+use goblin::elf::sym::STB_WEAK;
 use goblin::elf64::reloc::{self, Rela};
 
 use crate::elf::ElfItemIterator;
@@ -15,7 +16,6 @@ use crate::Handle;
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {
         let value = $value;
-        log::trace!("Relocate {:x?} to 0x{:x?}", $addr, value);
         unsafe { core::ptr::write_unaligned($addr as *mut $type, value as $type) };
     };
 }
@@ -58,7 +58,7 @@ impl Module for SysvReloc {
             .ok_or(SysvError::RelaSectionWithoutVirtualAdresses)? as *mut u8;
 
         let b = base as i64;
-        let g: i64 = obj
+        let _got: i64 = obj
             .find_symbol(
                 CString::from_str("_GLOBAL_OFFSET_TABLE_")
                     .unwrap()
@@ -68,7 +68,7 @@ impl Module for SysvReloc {
             .map(|entry| b + entry.1.st_value as i64)
             .unwrap_or_default();
 
-        for rela in ElfItemIterator::<Rela>::from_section(section) {
+        'rela: for rela in ElfItemIterator::<Rela>::from_section(section) {
             let addr = unsafe { base.add(rela.r_offset as usize) };
             let r#type = reloc::r_type(rela.r_info);
             let sym = reloc::r_sym(rela.r_info);
@@ -116,8 +116,36 @@ impl Module for SysvReloc {
                         }
                     }
                 }
-                R_X86_64_JUMP_SLOT | R_X86_64_GLOB_DAT => {
+                R_X86_64_JUMP_SLOT => {
                     apply_reloc!(addr, s?, u64);
+                }
+                R_X86_64_GLOB_DAT => {
+                    if (rela.r_info & (1 << STB_WEAK as u64)) != 0 {
+                        apply_reloc!(addr, s?, u64);
+                    }
+
+                    let name = section
+                        .get_linked_section(manifold)?
+                        .as_dynamic_symbol_table()?
+                        .get_symbol(sym as usize, manifold)?;
+
+                    for (_, lib_obj) in manifold.objects.enumerate() {
+                        let Ok((_, lib_sym)) = lib_obj.find_dynamic_symbol(name, manifold) else {
+                            continue;
+                        };
+                        if lib_sym.st_value == 0 {
+                            continue;
+                        }
+
+                        // Locates the section containing the symbol.
+                        let container = &manifold[lib_obj.sections[lib_sym.st_shndx as usize]];
+                        let start = lib_sym.st_value as usize + container.offset - container.addr;
+
+                        let lib_content = lib_obj.pie_load_offset.unwrap_or_default();
+
+                        apply_reloc!(addr, lib_content + start, u64);
+                        continue 'rela;
+                    }
                 }
                 R_X86_64_32 | R_X86_64_32S => {
                     apply_reloc!(addr, s? + a, u32);
@@ -130,6 +158,14 @@ impl Module for SysvReloc {
                 }
                 R_X86_64_RELATIVE => {
                     apply_reloc!(addr, b + a, u64);
+                }
+                R_X86_64_DTPMOD64 | R_X86_64_DTPOFF64 | R_X86_64_TPOFF64 | R_X86_64_TLSGD
+                | R_X86_64_TLSLD | R_X86_64_DTPOFF32 | R_X86_64_GOTTPOFF | R_X86_64_TPOFF32 => {
+                    /* Used for Thread Local Storage */
+                }
+                R_X86_64_IRELATIVE => {
+                    let code: extern "C" fn() -> i64 = unsafe { core::mem::transmute(b + a) };
+                    apply_reloc!(addr, code(), i64);
                 }
                 _ => panic!("unknown rela type 0x{:x}", r#type),
             };

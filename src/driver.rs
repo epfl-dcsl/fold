@@ -102,6 +102,13 @@ impl Fold {
 
     /// Applies the modules of the phase to every objects.
     fn drive_phase(phase: &mut Phase, manifold: &mut Manifold) {
+        for (filter, idx) in &phase.filters {
+            if matches!(filter, ItemFilter::ManifoldFilter) {
+                let module: &mut Box<dyn Module> = &mut phase.modules[*idx];
+                module.process_manifold(manifold).unwrap();
+            }
+        }
+
         for handle in manifold.objects.handle_generator() {
             if manifold.objects.get(handle).is_none() {
                 // We processed all the objects
@@ -115,14 +122,18 @@ impl Fold {
     /// Applies all modules to an object.
     fn apply_modules(obj: Handle<Object>, phase: &mut Phase, manifold: &mut Manifold) {
         for (filter, idx) in &phase.filters {
-            let module = &mut phase.modules[*idx];
+            let module: &mut Box<dyn Module> = &mut phase.modules[*idx];
 
-            if !manifold[obj].matches(filter.object_filter()) {
+            if !filter
+                .object_filter()
+                .is_some_and(|f| manifold[obj].matches(f))
+            {
                 // Object does not match
                 continue;
             }
 
             match filter {
+                ItemFilter::ManifoldFilter => {}
                 ItemFilter::Object(_) => {
                     if let Err(err) = module.process_object(obj, manifold) {
                         log::error!(

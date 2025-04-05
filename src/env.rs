@@ -41,6 +41,7 @@ pub struct Env {
 }
 
 impl Env {
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn from_argv(argv: usize) -> Self {
         let (args, ptr) = Self::collect_strings(argv as *const _);
         let ptr = ptr.add(1);
