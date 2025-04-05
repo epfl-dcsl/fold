@@ -79,7 +79,7 @@ impl Module for SysvReloc {
             let s: Result<i64, crate::error::FoldError> = section
                 .get_linked_section(manifold)?
                 .as_dynamic_symbol_table()?
-                .get_symbol_and_entry(sym as usize, &manifold)
+                .get_symbol_and_entry(sym as usize, manifold)
                 .map(|(name, entry)| {
                     if entry.st_shndx as u32 == SHN_UNDEF {
                         let o = manifold

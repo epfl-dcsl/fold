@@ -23,7 +23,7 @@ programs:
 	# hello.c 
 	gcc -o hello-c.o -c hello.c -fPIE
 	ld -rpath {{root_dir}} -pie --dynamic-linker {{linker}} hello-c.o -lc -o hello-c
-	patchelf --replace-needed libc.so.6 ../lib64/libc.so.6 hello-c
+	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-c
 
 clean:
 	rm *.o -f
