@@ -44,8 +44,8 @@ pub struct Object {
     pub(crate) e_phnum: u16,
     /// Index of the section header string table
     e_shstrndx: u16,
-
-    pub pie_load_offset: Option<usize>,
+    // (If loaded) where the object is loaded in memory
+    pub load_offset: Option<usize>,
 }
 
 impl Object {
@@ -67,7 +67,7 @@ impl Object {
             e_phnum: hdr.e_phnum,
             e_shstrndx: hdr.e_shstrndx,
             mapping: file,
-            pie_load_offset: None,
+            load_offset: None,
         };
 
         if let Err(err) = obj.validate() {

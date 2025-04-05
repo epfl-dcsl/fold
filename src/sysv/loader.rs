@@ -42,7 +42,7 @@ impl Module for SysvLoader {
         }
 
         let new_mapping = unsafe {
-            let offset = o.pie_load_offset.unwrap_or(0);
+            let offset = o.load_offset.unwrap_or(0);
 
             // Allocate memory
             let addr = s.vaddr + offset;
@@ -73,8 +73,8 @@ impl Module for SysvLoader {
 
             log::info!("Segment loaded at 0x{:x}", mapping as usize);
 
-            if s.vaddr == 0 && o.pie_load_offset.is_none() {
-                o.pie_load_offset = Some(mapping as usize)
+            if s.vaddr == 0 && o.load_offset.is_none() {
+                o.load_offset = Some(mapping as usize)
             }
 
             let mapping_start = mapping.add(addr & 0xfff);

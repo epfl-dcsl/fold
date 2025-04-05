@@ -56,7 +56,7 @@ impl Module for SysvReloc {
         );
 
         let base = obj
-            .pie_load_offset
+            .load_offset
             .ok_or(SysvError::RelaSectionWithoutVirtualAdresses)? as *mut u8;
 
         let b = base as i64;
@@ -88,7 +88,7 @@ impl Module for SysvReloc {
                             .filter(|o| o.0 != section.obj)
                             .find_map(|o| o.1.find_symbol(name, manifold).ok())
                             .unwrap();
-                        manifold[o.0.obj].pie_load_offset.unwrap() as i64 + o.1.st_value as i64
+                        manifold[o.0.obj].load_offset.unwrap() as i64 + o.1.st_value as i64
                     } else {
                         b + entry.st_value as i64
                     }
@@ -155,7 +155,7 @@ impl Module for SysvReloc {
                         let container = &manifold[lib_obj.sections[lib_sym.st_shndx as usize]];
                         let start = lib_sym.st_value as usize + container.offset - container.addr;
 
-                        let lib_content = lib_obj.pie_load_offset.unwrap_or_default();
+                        let lib_content = lib_obj.load_offset.unwrap_or_default();
 
                         apply_reloc!(addr, lib_content + start, u64);
                         continue 'rela;
