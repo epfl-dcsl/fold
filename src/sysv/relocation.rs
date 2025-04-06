@@ -87,7 +87,7 @@ impl Module for SysvReloc {
                             .enumerate()
                             .filter(|o| o.0 != section.obj)
                             .find_map(|o| o.1.find_symbol(name, manifold).ok())
-                            .unwrap();
+                            .unwrap_or_else(|| panic!("Can't find symbol: {:?}", name.to_str()));
                         manifold[o.0.obj].load_offset.unwrap() as i64 + o.1.st_value as i64
                     } else {
                         b + entry.st_value as i64
