@@ -21,8 +21,8 @@ programs:
 	ld -rpath {{root_dir}} -pie --dynamic-linker {{linker}} hello-dl.o libmsg.so -o hello-dl
 
 	# hello.c 
-	gcc -o hello-c.o -c hello.c -fPIE
-	ld -rpath {{root_dir}} -pie --dynamic-linker {{linker}} hello-c.o -lc -o hello-c
+	gcc -o hello-c hello.c -fPIE
+	patchelf --set-interpreter {{linker}} hello-c
 	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-c
 
 clean:

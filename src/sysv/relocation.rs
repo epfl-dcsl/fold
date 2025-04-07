@@ -76,29 +76,33 @@ impl Module for SysvReloc {
             let sym = reloc::r_sym(rela.r_info);
 
             let a = rela.r_addend;
-            let s: Result<i64, crate::error::FoldError> = section
+            let s = section
                 .get_linked_section(manifold)?
                 .as_dynamic_symbol_table()?
                 .get_symbol_and_entry(sym as usize, manifold)
-                .map(|(name, entry)| {
+                .map_err(SysvError::FoldError)
+                .and_then(|(name, entry)| {
                     if entry.st_shndx as u32 == SHN_UNDEF {
-                        let o = manifold
+                        manifold
                             .objects
                             .enumerate()
                             .filter(|o| o.0 != section.obj)
                             .find_map(|o| o.1.find_symbol(name, manifold).ok())
-                            .unwrap();
-                        manifold[o.0.obj].load_offset.unwrap() as i64 + o.1.st_value as i64
+                            .ok_or(SysvError::Other)
+                            .map(|o| {
+                                manifold[o.0.obj].load_offset.unwrap() as i64 + o.1.st_value as i64
+                            })
                     } else {
-                        b + entry.st_value as i64
+                        Ok(b + entry.st_value as i64)
                     }
-                });
+                })
+                .unwrap_or_default();
 
             // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
             match r#type {
                 R_X86_64_NONE => {}
                 R_X86_64_64 => {
-                    apply_reloc!(addr, s? + a, u64);
+                    apply_reloc!(addr, s + a, u64);
                 }
                 R_X86_64_COPY => {
                     let name = section
@@ -131,11 +135,11 @@ impl Module for SysvReloc {
                     }
                 }
                 R_X86_64_JUMP_SLOT => {
-                    apply_reloc!(addr, s?, u64);
+                    apply_reloc!(addr, s, u64);
                 }
                 R_X86_64_GLOB_DAT => {
                     if (rela.r_info & (1 << STB_WEAK as u64)) != 0 {
-                        apply_reloc!(addr, s?, u64);
+                        apply_reloc!(addr, s, u64);
                     }
 
                     let name = section
@@ -162,13 +166,13 @@ impl Module for SysvReloc {
                     }
                 }
                 R_X86_64_32 | R_X86_64_32S => {
-                    apply_reloc!(addr, s? + a, u32);
+                    apply_reloc!(addr, s + a, u32);
                 }
                 R_X86_64_16 => {
-                    apply_reloc!(addr, s? + a, u16);
+                    apply_reloc!(addr, s + a, u16);
                 }
                 R_X86_64_8 => {
-                    apply_reloc!(addr, s? + a, u8);
+                    apply_reloc!(addr, s + a, u8);
                 }
                 R_X86_64_RELATIVE => {
                     apply_reloc!(addr, b + a, u64);
