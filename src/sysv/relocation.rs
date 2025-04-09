@@ -177,10 +177,6 @@ impl Module for SysvReloc {
                 R_X86_64_RELATIVE => {
                     apply_reloc!(addr, b + a, u64);
                 }
-                R_X86_64_DTPMOD64 | R_X86_64_DTPOFF64 | R_X86_64_TPOFF64 | R_X86_64_TLSGD
-                | R_X86_64_TLSLD | R_X86_64_DTPOFF32 | R_X86_64_GOTTPOFF | R_X86_64_TPOFF32 => {
-                    /* Used for Thread Local Storage */
-                }
                 R_X86_64_IRELATIVE => {
                     let code: extern "C" fn() -> i64 = unsafe { core::mem::transmute(b + a) };
                     apply_reloc!(addr, code(), i64);
