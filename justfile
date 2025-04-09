@@ -10,7 +10,10 @@ run:
 build:
 	cargo +nightly build --target {{target}} -Z build-std=core,alloc
 	@just --justfile samples/justfile
+
+
 	@echo 'ARCH=x86_64' > musl/config.mak
+	@(cd musl && git apply ../musl.patch)
 	@make -C musl
 
 check:
