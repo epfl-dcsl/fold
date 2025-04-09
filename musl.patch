@@ -1,0 +1,27 @@
+diff --git a/ldso/dynlink.c b/ldso/dynlink.c
+index ceca3c98..279ea426 100644
+--- a/ldso/dynlink.c
++++ b/ldso/dynlink.c
+@@ -1616,7 +1616,8 @@ static void do_init_fini(struct dso **queue)
+ 
+ void __libc_start_init(void)
+ {
+-	do_init_fini(main_ctor_queue);
++	if(main_ctor_queue)
++		do_init_fini(main_ctor_queue);
+ 	if (!__malloc_replaced && main_ctor_queue != builtin_ctor_queue)
+ 		free(main_ctor_queue);
+ 	main_ctor_queue = 0;
+diff --git a/src/env/__stack_chk_fail.c b/src/env/__stack_chk_fail.c
+index e5352602..35c5bde2 100644
+--- a/src/env/__stack_chk_fail.c
++++ b/src/env/__stack_chk_fail.c
+@@ -18,7 +18,7 @@ void __init_ssp(void *entropy)
+ 	((char *)&__stack_chk_guard)[1] = 0;
+ #endif
+ 
+-	__pthread_self()->canary = __stack_chk_guard;
++	// __pthread_self()->canary = __stack_chk_guard;
+ }
+ 
+ void __stack_chk_fail(void)
