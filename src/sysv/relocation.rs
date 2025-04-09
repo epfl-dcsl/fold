@@ -66,6 +66,7 @@ impl Module for SysvReloc {
                     .unwrap()
                     .as_c_str(),
                 manifold,
+                section.obj,
             )
             .map(|entry| b + entry.1.st_value as i64)
             .unwrap_or_default();
@@ -87,7 +88,7 @@ impl Module for SysvReloc {
                             .objects
                             .enumerate()
                             .filter(|o| o.0 != section.obj)
-                            .find_map(|o| o.1.find_symbol(name, manifold).ok())
+                            .find_map(|o| o.1.find_symbol(name, manifold, section.obj).ok())
                             .ok_or(SysvError::Other)
                             .map(|o| {
                                 manifold[o.0.obj].load_offset.unwrap() as i64 + o.1.st_value as i64
@@ -110,10 +111,11 @@ impl Module for SysvReloc {
                         .as_dynamic_symbol_table()?
                         .get_symbol(sym as usize, manifold)?;
 
-                    'find_symbol: for (_, lib_obj) in
+                    'find_symbol: for (lib_obj_handle, lib_obj) in
                         manifold.objects.enumerate().filter(|s| s.0 != section.obj)
                     {
-                        let Ok((_, lib_sym)) = lib_obj.find_symbol(name, manifold) else {
+                        let Ok((_, lib_sym)) = lib_obj.find_symbol(name, manifold, lib_obj_handle)
+                        else {
                             continue;
                         };
 
@@ -147,8 +149,10 @@ impl Module for SysvReloc {
                         .as_dynamic_symbol_table()?
                         .get_symbol(sym as usize, manifold)?;
 
-                    for (_, lib_obj) in manifold.objects.enumerate() {
-                        let Ok((_, lib_sym)) = lib_obj.find_dynamic_symbol(name, manifold) else {
+                    for (lib_obj_handle, lib_obj) in manifold.objects.enumerate() {
+                        let Ok((_, lib_sym)) =
+                            lib_obj.find_dynamic_symbol(name, manifold, lib_obj_handle)
+                        else {
                             continue;
                         };
                         if lib_sym.st_value == 0 {
