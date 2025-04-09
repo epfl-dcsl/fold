@@ -1,5 +1,6 @@
 use alloc::boxed::Box;
 use alloc::sync::Arc;
+use goblin::elf::program_header::PT_LOAD;
 use core::ffi::c_void;
 
 use rustix::mm::{self, MapFlags, ProtFlags};
@@ -34,15 +35,15 @@ impl Module for SysvLoader {
         fold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
         let s = &fold.segments[segment];
-        let o = &mut fold.objects[s.obj];
-        log::info!("Loading segment of {}...", o.display_path());
+        let obj = &mut fold.objects[s.obj];
+        log::info!("Loading segment of {}...", obj.display_path());
 
         if s.mem_size == 0 {
             return Ok(());
         }
 
         let new_mapping = unsafe {
-            let offset = o.load_offset.unwrap_or(0);
+            let offset = obj.load_offset.unwrap_or(0);
 
             // Allocate memory
             let addr = s.vaddr + offset;
@@ -52,10 +53,11 @@ impl Module for SysvLoader {
                 s.mem_size
                     + (addr & 0xfff)
                     + if addr == 0 {
-                        let max = o
+                        let max = obj
                             .segments
                             .iter()
                             .map(|s| &fold.segments[*s])
+                            .filter(|s| s.tag == PT_LOAD)
                             .max_by_key(|s| s.vaddr);
                         max.map(|s| s.vaddr + s.mem_size).unwrap_or(0)
                     } else {
@@ -73,15 +75,15 @@ impl Module for SysvLoader {
 
             log::info!("Segment loaded at 0x{:x}", mapping as usize);
 
-            if s.vaddr == 0 && o.load_offset.is_none() {
-                o.load_offset = Some(mapping as usize)
+            if s.vaddr == 0 && obj.load_offset.is_none() {
+                obj.load_offset = Some(mapping as usize)
             }
 
             let mapping_start = mapping.add(addr & 0xfff);
 
             // Copy segment data
             mapping_start.copy_from(
-                ((o.raw().as_ptr() as usize) + s.offset) as *mut c_void,
+                ((obj.raw().as_ptr() as usize) + s.offset) as *mut c_void,
                 s.file_size,
             );
 

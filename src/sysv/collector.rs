@@ -117,7 +117,7 @@ impl Module for SysvCollector {
                 .iter()
                 .map(|p| format!("{}/{}", p, filename.to_str().unwrap()))
                 .find(|p| fs::stat(p.as_str()).is_ok())
-                .expect("Target not found");
+                .unwrap_or_else(|| panic!("Target {:?} not found", filename));
 
             let file_fd = file::open_file_ro(path_lib.as_str()).expect("Target is not a file");
 
