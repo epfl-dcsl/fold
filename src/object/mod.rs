@@ -14,7 +14,7 @@ use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
 use crate::filters::ObjectFilter;
 use crate::manifold::Manifold;
-use crate::{println, Section, SymbolTableSection};
+use crate::{Section, SymbolTableSection};
 
 pub mod section;
 
@@ -164,21 +164,21 @@ impl Object {
             // WEAK entries as well). This implements priority between LOCAL/GLOBAL and WEAK.
             let entry: Option<(&Sym, &CStr)> = matching_entries
                 .iter()
-                .filter(|(sym, _)| {
-                    (sym.st_info & STB_LOCAL != 0 && section.section.obj == obj)
-                        || (sym.st_info & STB_GLOBAL != 0)
+                .find(|(sym, _)| {
+                    let vis = sym.st_info & 0b111;
+
+                    (vis == STB_LOCAL && section.section.obj == obj) || vis == STB_GLOBAL
                 })
-                .next()
                 .or_else(|| matching_entries.first())
                 .cloned();
 
             // If an non-weak entry is found, return it.
-            if let Some((sym, s)) = entry {
+            if let Some((sym, _)) = entry {
                 if sym.st_info & STB_WEAK == 0 {
-                    return Ok((section.section, sym.clone()));
+                    return Ok((section.section, *sym));
                 }
 
-                weak_result = Ok((section.section, sym.clone()))
+                weak_result = Ok((section.section, *sym))
             }
         }
 

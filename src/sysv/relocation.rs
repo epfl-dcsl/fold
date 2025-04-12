@@ -4,7 +4,7 @@ use core::str::FromStr;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE, *};
 use goblin::elf::section_header::SHN_UNDEF;
-use goblin::elf::sym::{st_type, STB_GLOBAL, STB_WEAK};
+use goblin::elf::sym::STB_WEAK;
 use goblin::elf64::reloc::{self, Rela};
 
 use crate::elf::ElfItemIterator;

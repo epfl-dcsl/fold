@@ -4,7 +4,7 @@ use core::{arch::asm, ptr::{copy_nonoverlapping, null_mut}};
 
 use rustix::mm::{mmap_anonymous, MapFlags, ProtFlags};
 
-use crate::{dbg, module::Module, println};
+use crate::module::Module;
 
 const TCB_HEAD_SIZE: usize = 704;
 
