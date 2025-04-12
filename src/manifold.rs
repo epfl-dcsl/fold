@@ -1,16 +1,13 @@
-use alloc::borrow::ToOwned;
-use alloc::boxed::Box;
-use alloc::collections::btree_map::BTreeMap;
 use alloc::ffi::CString;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use core::any::{Any, TypeId};
 use core::ops::Index;
 
 use crate::arena::{Arena, Handle};
 use crate::file::Mapping;
 use crate::object::{Object, Segment};
+use crate::share_map::ShareMap;
 use crate::Section;
 
 // ———————————————————————————————— Manifold ———————————————————————————————— //
@@ -20,7 +17,7 @@ pub struct Manifold {
     pub objects: Arena<Object>,
     pub sections: Arena<Section>,
     pub segments: Arena<Segment>,
-    pub shared: BTreeMap<TypeId, BTreeMap<String, Box<dyn Any>>>,
+    pub shared: ShareMap,
     pub regions: Arena<()>,
     pub search_paths: Vec<String>,
 }
@@ -32,7 +29,7 @@ impl Manifold {
             sections: Arena::new(),
             segments: Arena::new(),
             regions: Arena::new(),
-            shared: BTreeMap::new(),
+            shared: ShareMap::new(),
             search_paths: Vec::new(),
         }
     }
@@ -63,25 +60,6 @@ impl Manifold {
         obj.sections = sections;
 
         obj_idx
-    }
-
-    pub fn add_shared<T: 'static>(&mut self, key: &str, value: T) {
-        let type_id = TypeId::of::<T>();
-
-        if let Some(entry) = self.shared.get_mut(&type_id) {
-            entry.insert(key.to_owned(), Box::new(value));
-        } else {
-            let mut map: BTreeMap<String, Box<dyn Any>> = BTreeMap::new();
-            map.insert(key.to_owned(), Box::new(value));
-            self.shared.insert(type_id, map);
-        }
-    }
-
-    pub fn get_shared<T: 'static>(&self, key: &str) -> Option<&T> {
-        self.shared
-            .get(&TypeId::of::<T>())
-            .and_then(|v| v.get(key))
-            .and_then(|v| v.downcast_ref())
     }
 
     pub fn add_search_paths(&mut self, paths: Vec<String>) {

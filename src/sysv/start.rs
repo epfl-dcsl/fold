@@ -2,6 +2,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::arch::asm;
 
+use super::loader::SYSV_LOADER_BASE_ADDR;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::Handle;
@@ -31,7 +32,11 @@ impl Module for SysvStart {
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
         let obj = &manifold.objects[obj];
-        let offset = obj.load_offset.unwrap_or(0);
+        let offset = obj
+            .shared
+            .get(SYSV_LOADER_BASE_ADDR)
+            .copied()
+            .unwrap_or_default();
         let entry = obj.header().e_entry + offset as u64;
 
         let stack = build_stack();

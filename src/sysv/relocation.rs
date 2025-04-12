@@ -12,6 +12,7 @@ use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::section::SectionT;
 use crate::sysv::error::SysvError;
+use crate::sysv::loader::SYSV_LOADER_BASE_ADDR;
 use crate::Handle;
 
 macro_rules! apply_reloc {
@@ -56,7 +57,9 @@ impl Module for SysvReloc {
         );
 
         let base = obj
-            .load_offset
+            .shared
+            .get(SYSV_LOADER_BASE_ADDR)
+            .copied()
             .ok_or(SysvError::RelaSectionWithoutVirtualAdresses)? as *mut u8;
 
         let b = base as i64;
@@ -91,7 +94,12 @@ impl Module for SysvReloc {
                             .find_map(|o| o.1.find_symbol(name, manifold, section.obj).ok())
                             .ok_or(SysvError::Other)
                             .map(|o| {
-                                manifold[o.0.obj].load_offset.unwrap() as i64 + o.1.st_value as i64
+                                manifold[o.0.obj]
+                                    .shared
+                                    .get(SYSV_LOADER_BASE_ADDR)
+                                    .copied()
+                                    .unwrap() as i64
+                                    + o.1.st_value as i64
                             })
                     } else {
                         Ok(b + entry.st_value as i64)
@@ -163,7 +171,11 @@ impl Module for SysvReloc {
                         let container = &manifold[lib_obj.sections[lib_sym.st_shndx as usize]];
                         let start = lib_sym.st_value as usize + container.offset - container.addr;
 
-                        let lib_content = lib_obj.load_offset.unwrap_or_default();
+                        let lib_content = lib_obj
+                            .shared
+                            .get(SYSV_LOADER_BASE_ADDR)
+                            .copied()
+                            .unwrap_or_default();
 
                         apply_reloc!(addr, lib_content + start, u64);
                         continue 'rela;

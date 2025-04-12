@@ -1,14 +1,17 @@
 use alloc::boxed::Box;
 use alloc::sync::Arc;
-use goblin::elf::program_header::PT_LOAD;
 use core::ffi::c_void;
 
+use goblin::elf::program_header::PT_LOAD;
 use rustix::mm::{self, MapFlags, ProtFlags};
 
 use crate::file::MappingMut;
 use crate::manifold::Manifold;
 use crate::module::Module;
+use crate::share_map::ShareMapKey;
 use crate::{Handle, Segment};
+
+pub const SYSV_LOADER_BASE_ADDR: ShareMapKey<usize> = ShareMapKey::new("sys_loader");
 
 pub struct SysvLoader {}
 
@@ -43,7 +46,7 @@ impl Module for SysvLoader {
         }
 
         let new_mapping = unsafe {
-            let offset = obj.load_offset.unwrap_or(0);
+            let offset = obj.shared.get(SYSV_LOADER_BASE_ADDR).copied().unwrap_or(0);
 
             // Allocate memory
             let addr = s.vaddr + offset;
@@ -75,8 +78,8 @@ impl Module for SysvLoader {
 
             log::info!("Segment loaded at 0x{:x}", mapping as usize);
 
-            if s.vaddr == 0 && obj.load_offset.is_none() {
-                obj.load_offset = Some(mapping as usize)
+            if s.vaddr == 0 && obj.shared.get(SYSV_LOADER_BASE_ADDR).is_none() {
+                obj.shared.insert(SYSV_LOADER_BASE_ADDR, mapping as usize)
             }
 
             let mapping_start = mapping.add(addr & 0xfff);

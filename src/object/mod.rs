@@ -14,6 +14,7 @@ use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
 use crate::filters::ObjectFilter;
 use crate::manifold::Manifold;
+use crate::share_map::ShareMap;
 use crate::{Section, SymbolTableSection};
 
 pub mod section;
@@ -46,8 +47,8 @@ pub struct Object {
     pub(crate) e_phnum: u16,
     /// Index of the section header string table
     e_shstrndx: u16,
-    // (If loaded) where the object is loaded in memory
-    pub load_offset: Option<usize>,
+
+    pub shared: ShareMap,
 }
 
 impl Object {
@@ -69,7 +70,7 @@ impl Object {
             e_phnum: hdr.e_phnum,
             e_shstrndx: hdr.e_shstrndx,
             mapping: file,
-            load_offset: None,
+            shared: ShareMap::new(),
         };
 
         if let Err(err) = obj.validate() {

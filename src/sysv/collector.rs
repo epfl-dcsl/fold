@@ -16,6 +16,7 @@ use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::section::SectionT;
+use crate::share_map::ShareMapKey;
 use crate::sysv::error::SysvError;
 use crate::{file, Handle, Object};
 
@@ -38,7 +39,8 @@ pub struct SysvCollectorResult {
     pub entries: Vec<SysvCollectorEntry>,
 }
 
-pub const SYSV_COLLECTOR_RESULT_KEY: &str = "sysv_collector";
+pub const SYSV_COLLECTOR_RESULT_KEY: ShareMapKey<SysvCollectorResult> =
+    ShareMapKey::new("sysv_collector");
 
 pub struct SysvCollector {}
 
@@ -97,11 +99,13 @@ impl Module for SysvCollector {
             Ok(deps)
         }
 
-        let mut deps: Vec<SysvCollectorEntry> =
-            match manifold.get_shared::<SysvCollectorResult>(SYSV_COLLECTOR_RESULT_KEY) {
-                Some(scr) => scr.entries.clone(),
-                None => Vec::new(),
-            };
+        let mut deps: Vec<SysvCollectorEntry> = match manifold
+            .shared
+            .get::<SysvCollectorResult>(SYSV_COLLECTOR_RESULT_KEY)
+        {
+            Some(scr) => scr.entries.clone(),
+            None => Vec::new(),
+        };
 
         let mut queue = Vec::new();
 
@@ -132,7 +136,7 @@ impl Module for SysvCollector {
             queue.extend(read_deps(obj, manifold)?);
         }
 
-        manifold.add_shared(
+        manifold.shared.insert(
             SYSV_COLLECTOR_RESULT_KEY,
             SysvCollectorResult { entries: deps },
         );
