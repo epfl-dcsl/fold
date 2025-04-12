@@ -33,12 +33,15 @@ pub fn new(env: Env) -> Fold {
 
     let config = cli::parse(env);
 
-    let path =
-        &config.target.to_string_lossy()[..config.target.to_string_lossy().rfind('/').unwrap()];
+    let cwd = if let Some(last_delim) = config.target.to_string_lossy().rfind('/') {
+        &config.target.to_string_lossy()[..last_delim]
+    } else {
+        "."
+    };
 
-    log::info!("adding cwd to path: {path}");
+    log::info!(r#"adding cwd to path: "{cwd}""#);
 
-    let search_path = Vec::from(&[path.to_owned()]);
+    let search_path = Vec::from(&[cwd.to_owned()]);
 
     Fold {
         config,
