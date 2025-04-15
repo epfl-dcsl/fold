@@ -30,6 +30,11 @@ programs:
 	patchelf --set-interpreter {{linker}} hello-env
 	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-env
 
+	# hello-math.c 
+	gcc -o hello-math hello-math.c -pie -fPIE -lm
+	patchelf --set-interpreter {{linker}} hello-math
+	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-math
+
 clean:
 	rm *.o -f
 	rm *.so -f
