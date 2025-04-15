@@ -1,6 +1,7 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::arch::asm;
+use core::ffi::CStr;
 
 use super::loader::SYSV_LOADER_BASE_ADDR;
 use crate::manifold::Manifold;
@@ -39,7 +40,7 @@ impl Module for SysvStart {
             .unwrap_or_default();
         let entry = obj.header().e_entry + offset as u64;
 
-        let stack = build_stack();
+        let stack = build_stack(&manifold.env.args);
 
         unsafe {
             log::info!("Jumping at 0x{:x}...", entry);
@@ -80,14 +81,15 @@ unsafe fn jmp(entry_point: *const u8, stack: *const u64, nb_items: u64) -> ! {
     unreachable!();
 }
 
-pub fn build_stack() -> Vec<u64> {
+pub fn build_stack(args: &[&'static CStr]) -> Vec<u64> {
     let mut stack = Vec::new();
     let null = 0; // The null byte
 
     // Args
-    stack.push(0); // argc, none for now
-                   // TODO: argv
-    stack.push(null);
+    stack.push(args.len() as u64);
+    for a in args {
+        stack.push(a.as_ptr() as u64);
+    }
 
     // Env
     // TODO: add env vars
