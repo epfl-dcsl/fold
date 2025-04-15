@@ -26,7 +26,7 @@ programs:
 	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-c
 
 	# hello-env.c 
-	gcc -o hello-env hello-env.c -fPIE
+	gcc -o hello-env hello-env.c -pie -fPIE
 	patchelf --set-interpreter {{linker}} hello-env
 	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-env
 

@@ -1,7 +1,8 @@
 use alloc::boxed::Box;
+use goblin::elf::program_header::{PF_R, PF_W, PF_X};
 use core::ffi::c_void;
 
-use rustix::mm::{self, MprotectFlags, ProtFlags};
+use rustix::mm::{self, MprotectFlags};
 
 use crate::manifold::Manifold;
 use crate::module::Module;
@@ -20,6 +21,21 @@ impl Default for SysvProtect {
         Self::new()
     }
 }
+
+fn flags_to_prot(p_flags: u32) -> MprotectFlags {
+    let mut prot = MprotectFlags::empty();
+    if p_flags & PF_R != 0 {
+        prot |= MprotectFlags::READ;
+    }
+    if p_flags & PF_W != 0 {
+        prot |= MprotectFlags::WRITE;
+    }
+    if p_flags & PF_X != 0 {
+        prot |= MprotectFlags::EXEC;
+    }
+    prot
+}
+
 
 impl Module for SysvProtect {
     fn name(&self) -> &'static str {
@@ -44,14 +60,15 @@ impl Module for SysvProtect {
                 mm::mprotect(
                     (mapping.bytes().as_ptr() as usize & (!0xfff)) as *mut c_void,
                     segment.mem_size + (mapping.bytes().as_ptr() as usize & 0xfff),
-                    MprotectFlags::from_bits(segment.flags).unwrap(),
+                    flags_to_prot(segment.flags),
                 )
                 .expect("Protecting pages failed");
 
                 log::info!(
-                    "Segment from: 0x{:x} protected with prot: {:?}",
-                    segment.mapping.bytes().as_ptr() as usize,
-                    ProtFlags::from_bits(segment.flags).unwrap()
+                    "Segment from: 0x{:x} protected with prot: {:?} {}",
+                    mapping.bytes().as_ptr() as usize,
+                    flags_to_prot(segment.flags),
+                    segment.flags
                 );
             }
         }
