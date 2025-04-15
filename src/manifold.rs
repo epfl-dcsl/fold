@@ -8,7 +8,7 @@ use crate::arena::{Arena, Handle};
 use crate::file::Mapping;
 use crate::object::{Object, Segment};
 use crate::share_map::ShareMap;
-use crate::Section;
+use crate::{Env, Section};
 
 // ———————————————————————————————— Manifold ———————————————————————————————— //
 
@@ -20,10 +20,11 @@ pub struct Manifold {
     pub shared: ShareMap,
     pub regions: Arena<()>,
     pub search_paths: Vec<String>,
+    pub env: Env,
 }
 
 impl Manifold {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(env: Env) -> Self {
         Self {
             objects: Arena::new(),
             sections: Arena::new(),
@@ -31,6 +32,7 @@ impl Manifold {
             regions: Arena::new(),
             shared: ShareMap::new(),
             search_paths: Vec::new(),
+            env
         }
     }
 
