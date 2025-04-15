@@ -10,7 +10,7 @@ const SELF: &[u8] = b"fold";
 
 pub struct Config {
     pub target: &'static CStr,
-    env: Env,
+    pub env: Env,
 }
 
 /// Parse command line arguments.

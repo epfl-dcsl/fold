@@ -88,7 +88,7 @@ impl Fold {
     }
 
     pub fn run(mut self) {
-        let mut manifold = Manifold::new();
+        let mut manifold = Manifold::new(self.config.env);
 
         // Load target
         let target = self.config.target;
