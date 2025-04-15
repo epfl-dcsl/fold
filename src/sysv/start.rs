@@ -1,12 +1,11 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::arch::asm;
-use core::ffi::CStr;
 
 use super::loader::SYSV_LOADER_BASE_ADDR;
 use crate::manifold::Manifold;
 use crate::module::Module;
-use crate::Handle;
+use crate::{Env, Handle};
 
 pub struct SysvStart {}
 
@@ -40,7 +39,7 @@ impl Module for SysvStart {
             .unwrap_or_default();
         let entry = obj.header().e_entry + offset as u64;
 
-        let stack = build_stack(&manifold.env.args);
+        let stack = build_stack(&manifold.env);
 
         unsafe {
             log::info!("Jumping at 0x{:x}...", entry);
@@ -81,24 +80,27 @@ unsafe fn jmp(entry_point: *const u8, stack: *const u64, nb_items: u64) -> ! {
     unreachable!();
 }
 
-pub fn build_stack(args: &[&'static CStr]) -> Vec<u64> {
+pub fn build_stack(env: &Env) -> Vec<u64> {
     let mut stack = Vec::new();
-    let null = 0; // The null byte
+    // let null = 0; // The null byte
 
     // Args
-    stack.push(args.len() as u64);
-    for a in args {
+    stack.push(env.args.len() as u64);
+    for a in env.args.clone() {
         stack.push(a.as_ptr() as u64);
     }
 
     // Env
     // TODO: add env vars
-    stack.push(null);
+    for a in env.envp.clone() {
+        stack.push(a.as_ptr() as u64);
+    }
 
     // Auxv
     // TODO: add auxv
-    stack.push(null);
-    stack.push(null);
+    // for a in env.auxv.clone() {
+    //     stack.push(a.as_ptr() as u64);
+    // }
 
     stack
 }

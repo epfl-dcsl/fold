@@ -246,7 +246,7 @@ impl Segment {
             loaded_mapping: None,
             obj: obj_idx,
             tag: header.p_type,
-            flags: header.p_flags,
+            flags: header.p_flags.reverse_bits()>>29,
             offset: header.p_offset as usize,
             vaddr: header.p_vaddr as usize,
             paddr: header.p_paddr as usize,

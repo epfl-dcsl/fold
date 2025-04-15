@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use core::ffi::c_void;
 
-use rustix::mm::{self, MprotectFlags, ProtFlags};
+use rustix::mm::{self, MprotectFlags};
 
 use crate::manifold::Manifold;
 use crate::module::Module;
@@ -50,8 +50,8 @@ impl Module for SysvProtect {
 
                 log::info!(
                     "Segment from: 0x{:x} protected with prot: {:?}",
-                    segment.mapping.bytes().as_ptr() as usize,
-                    ProtFlags::from_bits(segment.flags).unwrap()
+                    mapping.bytes().as_ptr() as usize,
+                    MprotectFlags::from_bits(segment.flags).unwrap()
                 );
             }
         }
