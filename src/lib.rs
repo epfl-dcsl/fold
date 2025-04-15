@@ -20,18 +20,16 @@ mod logging;
 pub mod manifold;
 pub mod module;
 mod object;
-pub mod sysv;
 pub mod share_map;
+pub mod sysv;
 
 pub use arena::Handle;
 pub use driver::new;
 pub use env::Env;
 pub use exit::{exit, exit_error, Exit};
 pub use logging::init as init_logging;
-pub use object::{
-    section::{SymbolTableSection, Section, SectionT, StringTableSection},
-    Object, Segment,
-};
+pub use object::section::{Section, SectionT, StringTableSection, SymbolTableSection};
+pub use object::{Object, Segment};
 
 #[macro_export]
 macro_rules! entry {

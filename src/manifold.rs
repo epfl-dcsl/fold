@@ -32,7 +32,7 @@ impl Manifold {
             regions: Arena::new(),
             shared: ShareMap::new(),
             search_paths: Vec::new(),
-            env
+            env,
         }
     }
 

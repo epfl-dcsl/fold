@@ -1,11 +1,15 @@
+use alloc::sync::Arc;
 use core::ffi::CStr;
 
-use alloc::sync::Arc;
-use goblin::{elf::section_header::*, elf64::section_header::SectionHeader};
-
-use crate::{elf::ElfItemIterator, error::FoldError, file::Mapping, manifold::Manifold, Handle};
+use goblin::elf::section_header::*;
+use goblin::elf64::section_header::SectionHeader;
 
 use super::Object;
+use crate::elf::ElfItemIterator;
+use crate::error::FoldError;
+use crate::file::Mapping;
+use crate::manifold::Manifold;
+use crate::Handle;
 
 macro_rules! derive_sectiont {
     ($struct:ty) => {
@@ -189,10 +193,15 @@ impl<'a> SymbolTableSection<'a> {
             .get_symbol(entry.st_name as usize)
     }
 
-    pub fn get_symbol_and_entry(&self, index: usize, manifold: &'a Manifold) -> Result<(&'a CStr, goblin::elf::sym::sym64::Sym), FoldError> {
+    pub fn get_symbol_and_entry(
+        &self,
+        index: usize,
+        manifold: &'a Manifold,
+    ) -> Result<(&'a CStr, goblin::elf::sym::sym64::Sym), FoldError> {
         let entry = self.get_entry(index)?;
 
-        let name = self.section
+        let name = self
+            .section
             .get_linked_section(manifold)?
             .as_string_table()?
             .get_symbol(entry.st_name as usize)?;

@@ -48,10 +48,12 @@ impl MappingMut {
 }
 
 /// Open a file in read only
-pub fn open_file_ro<P: path::Arg + core::marker::Copy + core::fmt::Debug>(path: P) -> Result<OwnedFd, ()> {
+pub fn open_file_ro<P: path::Arg + core::marker::Copy + core::fmt::Debug>(
+    path: P,
+) -> Result<OwnedFd, ()> {
     if fs::stat(path).is_err() {
         panic!("File {:?} doesn't exit", path);
-    } 
+    }
     let fd = fs::open(path, fs::OFlags::RDONLY, fs::Mode::empty()).map_err(|_| ())?;
     let stat = fs::fstat(&fd).map_err(|_| ())?;
 

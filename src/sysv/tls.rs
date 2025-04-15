@@ -1,6 +1,7 @@
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
-use core::{arch::asm, ptr::{copy_nonoverlapping, null_mut}};
+use core::arch::asm;
+use core::ptr::{copy_nonoverlapping, null_mut};
 
 use rustix::mm::{mmap_anonymous, MapFlags, ProtFlags};
 
