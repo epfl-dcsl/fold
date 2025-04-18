@@ -1,14 +1,12 @@
 #include <stdio.h>
-#include <stdlib.h>
 
 int main(int argc, char** argv) {
-  const char* name = getenv("NAME");
-  if (name == NULL){
+  if (argc != 2){
     puts("Missing name :/");
     return 1;
   }
 
-  printf("Hello %s !\n", name);
+  printf("Hello %s !\n", argv[1]);
   return 0;
 }
 
