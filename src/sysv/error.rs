@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use alloc::{boxed::Box, ffi::CString};
 
 use crate::error::FoldError;
 
@@ -6,6 +6,7 @@ use crate::error::FoldError;
 pub enum SysvError {
     FoldError(FoldError),
     RelaSectionWithoutVirtualAdresses,
+    DependencyNotFound(CString),
     Other,
 }
 

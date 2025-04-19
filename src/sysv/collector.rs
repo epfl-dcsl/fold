@@ -5,12 +5,12 @@ use alloc::format;
 use alloc::vec::Vec;
 use core::ffi::CStr;
 use core::fmt::Debug;
+use rustix::fs;
 
 use goblin::elf::dynamic::DT_NEEDED;
 use goblin::elf::section_header::SHT_DYNAMIC;
 use goblin::elf64::dynamic::Dyn;
 use log::trace;
-use rustix::fs;
 
 use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
@@ -22,24 +22,19 @@ use crate::{file, Handle, Object};
 
 #[derive(Clone)]
 pub struct SysvCollectorEntry {
+    /// Filename of the dependency
     pub name: CString,
+    /// Handle to the ELF file of the dependency
     pub obj: Handle<Object>,
 }
 
 impl Debug for SysvCollectorEntry {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("SysvCollectorEntry")
-            .field("name", &self.name.to_string_lossy())
-            .field("obj", &"<handle>".to_owned())
-            .finish()
+        write!(f, "{:?}", self.name)
     }
 }
 
-pub struct SysvCollectorResult {
-    pub entries: Vec<SysvCollectorEntry>,
-}
-
-pub const SYSV_COLLECTOR_RESULT_KEY: ShareMapKey<SysvCollectorResult> =
+pub const SYSV_COLLECTOR_RESULT_KEY: ShareMapKey<Vec<SysvCollectorEntry>> =
     ShareMapKey::new("sysv_collector");
 
 pub struct SysvCollector {}
@@ -66,62 +61,61 @@ impl Module for SysvCollector {
         obj: Handle<Object>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
-        fn read_deps(
-            obj: Handle<Object>,
-            manifold: &mut Manifold,
-        ) -> Result<Vec<CString>, SysvError> {
+        // No recursion is needed for collecting dependencies; object needed by the executable are loaded into the manifold,
+        // then the collector is invoked on them, etc.
+
+        /// Returns the name of all dependencies of a given object
+        fn read_deps(obj: &Object, manifold: &Manifold) -> Result<Vec<CString>, SysvError> {
             let mut deps = Vec::new();
-            let obj = &manifold[obj];
 
-            trace!("[{}] Collecting from obj", obj.display_path());
+            // Iterates over all dynamic sections
+            for sec in obj
+                .sections
+                .iter()
+                .map(|sec| &manifold.sections[*sec])
+                .filter(|sec| sec.tag == SHT_DYNAMIC)
+            {
+                let linked_dynstr = sec.get_linked_section(manifold)?.as_string_table()?;
 
-            for sec in obj.sections.iter() {
-                let sec = &manifold.sections[*sec];
-
-                if sec.tag == SHT_DYNAMIC {
-                    let linked_dynstr = sec.get_linked_section(manifold)?;
-
-                    for idx in ElfItemIterator::<Dyn>::from_section(sec)
+                // Add all entries marked with DT_NEEDED to the object's dependencies
+                deps.append(
+                    &mut ElfItemIterator::<Dyn>::from_section(sec)
                         .filter(|e| e.d_tag == DT_NEEDED)
                         .map(|e| e.d_val)
-                    {
-                        deps.push(CString::from(
-                            CStr::from_bytes_until_nul(
-                                &linked_dynstr.mapping.bytes()
-                                    [(linked_dynstr.offset + idx as usize)..],
-                            )
-                            .expect("Invalid deps str"),
-                        ));
-                    }
-                }
+                        .map(|idx| linked_dynstr.get_symbol(idx as usize).map(CStr::to_owned))
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
             }
 
+            trace!("[{}] Found deps: {:?}", obj.display_path(), deps);
             Ok(deps)
         }
 
-        let mut deps: Vec<SysvCollectorEntry> = match manifold
+        // Fetches the already loaded depencencies
+        let obj = &manifold[obj];
+        let mut deps: Vec<SysvCollectorEntry> = manifold
             .shared
-            .get::<SysvCollectorResult>(SYSV_COLLECTOR_RESULT_KEY)
-        {
-            Some(scr) => scr.entries.clone(),
-            None => Vec::new(),
-        };
+            .get(SYSV_COLLECTOR_RESULT_KEY)
+            .cloned()
+            .unwrap_or_default();
+        trace!("[{}] Collecting from obj", obj.display_path());
+        trace!("[{}] Initial deps: {:?}", obj.display_path(), deps);
 
-        let mut queue = Vec::new();
+        // Compute the dependencies of the current object, and removes the ones already found
+        let new_deps = read_deps(obj, manifold)?
+            .into_iter()
+            .filter(|n| deps.iter().all(|d| d.name != *n))
+            .collect::<Vec<_>>();
+        trace!("[{}] New deps: {:?}", obj.display_path(), new_deps);
 
-        queue.extend(read_deps(obj, manifold)?);
-
-        while let Some(filename) = queue.pop() {
-            if deps.iter().any(|e| e.name == filename) {
-                continue;
-            }
-
+        // Loads all the newly found dependencies
+        for filename in new_deps {
             let path_lib = manifold
                 .search_paths
                 .iter()
                 .map(|p| format!("{}/{}", p, filename.to_str().unwrap()))
                 .find(|p| fs::stat(p.as_str()).is_ok())
-                .unwrap_or_else(|| panic!("Target {:?} not found", filename));
+                .ok_or_else(|| SysvError::DependencyNotFound(filename.clone()))?;
 
             let file_fd = file::open_file_ro(path_lib.as_str()).expect("Target is not a file");
 
@@ -132,14 +126,9 @@ impl Module for SysvCollector {
                 name: filename,
                 obj,
             });
-
-            queue.extend(read_deps(obj, manifold)?);
         }
 
-        manifold.shared.insert(
-            SYSV_COLLECTOR_RESULT_KEY,
-            SysvCollectorResult { entries: deps },
-        );
+        manifold.shared.insert(SYSV_COLLECTOR_RESULT_KEY, deps);
 
         Ok(())
     }
