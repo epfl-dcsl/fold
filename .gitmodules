@@ -1,3 +1,6 @@
 [submodule "musl"]
 	path = musl
 	url = https://github.com/kraj/musl
+[submodule "sqlite"]
+	path = sqlite
+	url = https://github.com/sqlite/sqlite
