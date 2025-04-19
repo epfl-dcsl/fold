@@ -6,7 +6,7 @@ extern crate fold;
 
 use fold::elf::cst::{PT_LOAD, SHT_RELA};
 use fold::filters::{section, segment, ItemFilter, ObjectFilter};
-use fold::sysv::collector::SysvCollector;
+use fold::sysv::collector::SysvRemappingCollector;
 use fold::sysv::loader::SysvLoader;
 use fold::sysv::protect::SysvProtect;
 use fold::sysv::relocation::SysvReloc;
@@ -25,7 +25,22 @@ fn entry(env: Env) -> ! {
         .search_path("/lib64")
         .search_path("/usr/lib/")
         .phase("collect")
-        .register(SysvCollector::new(), ObjectFilter::any())
+        .register(
+            SysvRemappingCollector::new()
+                .replace("libc.so", "libc.so")
+                .drop_multiple(&[
+                    "ld-linux-x86-64.so",
+                    "libcrypt.so",
+                    "libdl.so",
+                    "libm.so",
+                    "libpthread.so",
+                    "libresolv.so",
+                    "librt.so",
+                    "libutil.so",
+                    "libxnet.so",
+                ]),
+            ObjectFilter::any(),
+        )
         .phase("load")
         .register(SysvLoader::new(), segment(PT_LOAD))
         .phase("relocation")
