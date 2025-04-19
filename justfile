@@ -13,7 +13,7 @@ build:
 
 
 	@echo 'ARCH=x86_64' > musl/config.mak
-	@(cd musl && git apply ../musl.patch || true)
+	@sh patch-musl.sh
 	@make -C musl
 
 check:
