@@ -1,0 +1,3 @@
+build:
+	../sqlite/configure --disable-threadsafe --dev --debug --disable-shared --disable-static
+	make

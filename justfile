@@ -16,6 +16,9 @@ build:
 	@sh patch-musl.sh
 	@make -C musl
 
+sqlite-build:
+	@just --justfile sqlite-build/justfile build
+
 check:
 	cargo +nightly check --target {{target}} -Z build-std=core,alloc
 	
