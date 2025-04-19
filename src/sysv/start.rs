@@ -82,7 +82,7 @@ unsafe fn jmp(entry_point: *const u8, stack: *const u64, nb_items: u64) -> ! {
 
 pub fn build_stack(env: &Env) -> Vec<u64> {
     let mut stack = Vec::new();
-    // let null = 0; // The null byte
+    let null = 0; // The null byte
 
     // Args
     stack.push(env.args.len() as u64);
@@ -91,10 +91,10 @@ pub fn build_stack(env: &Env) -> Vec<u64> {
     }
 
     // Env
-    // TODO: add env vars
     for a in env.envp.clone() {
         stack.push(a.as_ptr() as u64);
     }
+    stack.push(null); // env is a null terminated array
 
     // Auxv
     // TODO: add auxv
