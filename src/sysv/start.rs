@@ -89,6 +89,7 @@ pub fn build_stack(env: &Env) -> Vec<u64> {
     for a in env.args.clone() {
         stack.push(a.as_ptr() as u64);
     }
+    stack.push(null); // argv is a null terminated array
 
     // Env
     for a in env.envp.clone() {

@@ -21,7 +21,7 @@ use crate::module::Module;
 use crate::object::section::SectionT;
 use crate::share_map::ShareMapKey;
 use crate::sysv::error::SysvError;
-use crate::{dbg, file, Handle, Object};
+use crate::{file, Handle, Object};
 
 /// Returns the name of all dependencies of a given object
 fn read_deps(obj: &Object, manifold: &Manifold) -> Result<Vec<CString>, SysvError> {

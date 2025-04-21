@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main(int argc, char** argv) {
+int main() {
   const char* name = getenv("NAME");
   if (name == NULL){
     puts("Missing name :/");

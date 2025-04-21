@@ -4,9 +4,10 @@
 extern crate alloc;
 extern crate fold;
 
-use fold::elf::cst::{PT_LOAD, SHT_RELA};
+use fold::elf::cst::{PT_LOAD, SHT_FINI_ARRAY, SHT_INIT_ARRAY, SHT_RELA};
 use fold::filters::{section, segment, ItemFilter, ObjectFilter};
 use fold::sysv::collector::SysvRemappingCollector;
+use fold::sysv::init_array::SysvInitArray;
 use fold::sysv::loader::SysvLoader;
 use fold::sysv::protect::SysvProtect;
 use fold::sysv::relocation::SysvReloc;
@@ -43,12 +44,16 @@ fn entry(env: Env) -> ! {
         )
         .phase("load")
         .register(SysvLoader::new(), segment(PT_LOAD))
+        .phase("tls")
+        .register(SysvTls::new(), ItemFilter::ManifoldFilter)
         .phase("relocation")
         .register(SysvReloc::new(), section(SHT_RELA))
         .phase("protect")
         .register(SysvProtect::new(), segment(PT_LOAD))
-        .phase("tls")
-        .register(SysvTls::new(), ItemFilter::ManifoldFilter)
+        .phase("init array")
+        .register(SysvInitArray::new(), section(SHT_INIT_ARRAY))
+        .phase("fini array")
+        .register(SysvInitArray::new(), section(SHT_FINI_ARRAY))
         .phase("start")
         .register(SysvStart::new(), ObjectFilter::any())
         .run();

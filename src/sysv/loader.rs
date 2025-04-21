@@ -56,13 +56,13 @@ impl Module for SysvLoader {
                 s.mem_size
                     + (addr & 0xfff)
                     + if addr == 0 {
-                        let max = obj
-                            .segments
+                        obj.segments
                             .iter()
                             .map(|s| &fold.segments[*s])
                             .filter(|s| s.tag == PT_LOAD)
-                            .max_by_key(|s| s.vaddr);
-                        max.map(|s| s.vaddr + s.mem_size).unwrap_or(0)
+                            .max_by_key(|s| s.vaddr)
+                            .map(|s| s.vaddr + s.mem_size)
+                            .unwrap_or(0)
                     } else {
                         0
                     },
@@ -78,7 +78,8 @@ impl Module for SysvLoader {
 
             log::info!("Segment loaded at 0x{:x}", mapping as usize);
 
-            if s.vaddr == 0 && obj.shared.get(SYSV_LOADER_BASE_ADDR).is_none() {
+ 
+            if obj.shared.get(SYSV_LOADER_BASE_ADDR).is_none() {
                 obj.shared.insert(SYSV_LOADER_BASE_ADDR, mapping as usize)
             }
 

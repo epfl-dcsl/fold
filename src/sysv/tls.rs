@@ -6,8 +6,10 @@ use core::ptr::{copy_nonoverlapping, null_mut};
 use rustix::mm::{mmap_anonymous, MapFlags, ProtFlags};
 
 use crate::module::Module;
+use crate::share_map::ShareMapKey;
 
 const TCB_HEAD_SIZE: usize = 704;
+pub const TCB_KEY: ShareMapKey<usize> = ShareMapKey::new("TLS");
 
 pub struct SysvTls {}
 
@@ -30,12 +32,21 @@ impl Module for SysvTls {
 
     fn process_manifold(
         &mut self,
-        _manifold: &mut crate::manifold::Manifold,
+        manifold: &mut crate::manifold::Manifold,
     ) -> Result<(), alloc::boxed::Box<dyn core::fmt::Debug>> {
         log::info!("setting up tls");
 
         let tls = build_tls(Default::default());
         unsafe { set_fs(tls) };
+        let val: usize;
+        unsafe {
+            asm!(
+                "mov {}, fs",
+                out(reg) val
+            );
+        }
+
+        manifold.shared.insert(TCB_KEY, tls - val);
 
         Ok(())
     }
