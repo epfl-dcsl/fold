@@ -13,7 +13,6 @@ use crate::module::Module;
 use crate::object::section::SectionT;
 use crate::sysv::error::SysvError;
 use crate::sysv::loader::SYSV_LOADER_BASE_ADDR;
-use crate::sysv::tls::TCB_KEY;
 use crate::Handle;
 
 macro_rules! apply_reloc {
@@ -136,8 +135,11 @@ impl Module for SysvReloc {
                         let lib_content = container.mapping.bytes().as_ptr() as usize;
 
                         unsafe {
+                            let mut value = *((lib_content + start) as *mut u64);
+                            value += *lib_obj.shared.get(SYSV_LOADER_BASE_ADDR).unwrap_or(&0) as u64;
+
                             core::ptr::copy_nonoverlapping(
-                                (lib_content + start) as *const u8,
+                                (&value) as *const u64 as *const u8,
                                 addr,
                                 lib_sym.st_size as usize,
                             );
@@ -197,13 +199,6 @@ impl Module for SysvReloc {
                 R_X86_64_IRELATIVE => {
                     let code: extern "C" fn() -> i64 = unsafe { core::mem::transmute(b + a) };
                     apply_reloc!(addr, code(), i64);
-                }
-                R_X86_64_TLSDESC => {
-                    apply_reloc!(
-                        addr,
-                        s + a + *manifold.shared.get(TCB_KEY).unwrap() as i64,
-                        u128
-                    );
                 }
                 _ => panic!("unknown rela type 0x{:x}", r#type),
             };
