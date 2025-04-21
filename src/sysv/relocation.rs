@@ -112,6 +112,7 @@ impl Module for SysvReloc {
             match r#type {
                 R_X86_64_NONE => {}
                 R_X86_64_64 => {
+
                     apply_reloc!(addr, s + a, u64);
                 }
                 R_X86_64_COPY => {

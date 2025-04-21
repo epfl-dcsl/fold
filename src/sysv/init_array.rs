@@ -40,7 +40,7 @@ impl Module for SysvInitArray {
             .get(SYSV_LOADER_BASE_ADDR)
             .unwrap_or(&0) as u64;
 
-        for addr in ElfItemIterator::<u64>::from_section(&section) {
+        for addr in ElfItemIterator::<u64>::from_section(section) {
             let code: extern "C" fn() -> i64 = unsafe { core::mem::transmute(addr + base) };
 
             log::info!("Call function at {:x} (loaded at 0x{:x})", addr, addr + base);
