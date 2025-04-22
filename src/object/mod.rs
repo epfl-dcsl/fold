@@ -185,6 +185,8 @@ impl Object {
         weak_result
     }
 
+    /// Find the given symbol in one of the [`SHT_STRTAB`](goblin::elf::section_header::SHT_STRTAB) section of this object.
+    /// Symbols with binding [`STB_LOCAL`] or [`STB_GLOBAL`] take priority over [`STB_WEAK`].
     pub fn find_symbol<'a>(
         &'a self,
         symbol: &'_ CStr,
@@ -193,6 +195,8 @@ impl Object {
         self.find_symbol_(symbol, manifold, |s| s.as_symbol_table())
     }
 
+    /// Find the given symbol in one of the [`SHT_DYNSYM`](goblin::elf::section_header::SHT_DYNSYM) section of this object.
+    /// Symbols with binding [`STB_LOCAL`] or [`STB_GLOBAL`] take priority over [`STB_WEAK`].
     pub fn find_dynamic_symbol<'a>(
         &'a self,
         symbol: &'_ CStr,

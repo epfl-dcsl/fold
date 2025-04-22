@@ -79,38 +79,36 @@ impl Module for SysvReloc {
             let sym = reloc::r_sym(rela.r_info);
 
             let a = rela.r_addend;
-            let s = if let Ok((name, entry)) = section
-                .get_linked_section(manifold)?
-                .as_dynamic_symbol_table()?
-                .get_symbol_and_entry(sym as usize, manifold)
-            {
-                if !name.is_empty() {
-                    manifold
-                        .find_symbol(name, section.obj)
-                        .map(|o| {
-                            if o.1.st_value == 0 {
-                                log::info!(
-                                    "Found symbol {name:?} at offset {} in {} with bindings {}: {:?}",
-                                    o.1.st_value,
-                                    manifold.objects[o.0.obj].display_path(),
-                                    sym_bindings(&o.1),
-                                    o.1,
-                                );
-                            }
 
-                            manifold[o.0.obj]
-                                .shared
-                                .get(SYSV_LOADER_BASE_ADDR)
-                                .copied()
-                                .unwrap() as i64
-                                + o.1.st_value as i64
-                        })
-                        .unwrap_or_default()
-                } else {
-                    0
+            // TODO: this could be done later, to avoid useless computation if the relocation does not need
+            // the symbol's address. E.g. using lazy evaluation.
+            let s = 'symbol_search: {
+                // Get the symbol's name
+                let Ok(name) = section
+                    .get_linked_section(manifold)?
+                    .as_dynamic_symbol_table()?
+                    .get_symbol(sym as usize, manifold)
+                else {
+                    break 'symbol_search 0;
+                };
+
+                // Ignore empty symbols
+                if name.is_empty() {
+                    break 'symbol_search 0;
                 }
-            } else {
-                0
+
+                // Find the related symbol in the loaded objects
+                manifold
+                    .find_symbol(name, section.obj)
+                    .map(|o| {
+                        manifold[o.0.obj]
+                            .shared
+                            .get(SYSV_LOADER_BASE_ADDR)
+                            .copied()
+                            .unwrap() as i64
+                            + o.1.st_value as i64
+                    })
+                    .unwrap_or_default()
             };
 
             // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
@@ -134,7 +132,7 @@ impl Module for SysvReloc {
                         .as_dynamic_symbol_table()?
                         .get_symbol(sym as usize, manifold)?;
 
-                    'find_symbol: for (lib_obj_handle, lib_obj) in
+                    'find_symbol: for (_, lib_obj) in
                         manifold.objects.enumerate().filter(|s| s.0 != section.obj)
                     {
                         let Ok((_, lib_sym)) = lib_obj.find_symbol(name, manifold) else {
