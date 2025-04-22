@@ -10,7 +10,7 @@ use fold::sysv::collector::SysvRemappingCollector;
 use fold::sysv::init_array::SysvInitArray;
 use fold::sysv::loader::SysvLoader;
 use fold::sysv::protect::SysvProtect;
-use fold::sysv::relocation::SysvReloc;
+use fold::sysv::relocation::{SysvReloc, SysvRelocLib};
 use fold::sysv::start::SysvStart;
 use fold::sysv::tls::SysvTls;
 use fold::{exit, init_logging, Env, Exit};
@@ -46,7 +46,9 @@ fn entry(env: Env) -> ! {
         .register(SysvLoader::new(), segment(PT_LOAD))
         .phase("tls")
         .register(SysvTls::new(), ItemFilter::ManifoldFilter)
-        .phase("relocation")
+        .phase("relocation lib")
+        .register(SysvRelocLib::new(), section(SHT_RELA))
+        .phase("relocation exe")
         .register(SysvReloc::new(), section(SHT_RELA))
         .phase("protect")
         .register(SysvProtect::new(), segment(PT_LOAD))

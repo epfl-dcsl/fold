@@ -125,6 +125,8 @@ impl Module for SysvCollector {
             let file = file::map_file(file_fd);
             let obj = manifold.add_elf_file(file, filename.clone());
 
+            manifold.objects.get_mut(obj).unwrap().is_lib = true;
+
             deps.push(SysvCollectorEntry {
                 name: filename,
                 obj,
