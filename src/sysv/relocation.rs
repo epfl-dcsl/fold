@@ -3,11 +3,10 @@ use alloc::ffi::CString;
 use core::str::FromStr;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE, *};
-use goblin::elf::section_header::SHN_UNDEF;
 use goblin::elf::sym::STB_WEAK;
 use goblin::elf64::reloc::{self, Rela};
 
-use crate::elf::ElfItemIterator;
+use crate::elf::{sym_bindings, ElfItemIterator};
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::section::SectionT;
@@ -70,7 +69,6 @@ impl Module for SysvReloc {
                     .unwrap()
                     .as_c_str(),
                 manifold,
-                section.obj,
             )
             .map(|entry| b + entry.1.st_value as i64)
             .unwrap_or_default();
@@ -81,42 +79,38 @@ impl Module for SysvReloc {
             let sym = reloc::r_sym(rela.r_info);
 
             let a = rela.r_addend;
-            let s = {
-                if let Ok((name, entry)) = section
-                    .get_linked_section(manifold)?
-                    .as_dynamic_symbol_table()?
-                    .get_symbol_and_entry(sym as usize, manifold)
-                {
-                    if !name.is_empty() {
-                        if entry.st_shndx as u32 == SHN_UNDEF {
-                            manifold
-                                .objects
-                                .enumerate()
-                                .filter(|o| o.0 != section.obj)
-                                .find_map(|o| {
-                                    o.1.find_dynamic_symbol(name, manifold, section.obj).ok()
-                                })
-                                .ok_or(SysvError::Other)
-                                .map(|o| {
-                                    log::info!("Found symbol {name:?} at offset {} ", o.1.st_value);
+            let s = if let Ok((name, entry)) = section
+                .get_linked_section(manifold)?
+                .as_dynamic_symbol_table()?
+                .get_symbol_and_entry(sym as usize, manifold)
+            {
+                if !name.is_empty() {
+                    manifold
+                        .find_symbol(name, section.obj)
+                        .map(|o| {
+                            if o.1.st_value == 0 {
+                                log::info!(
+                                    "Found symbol {name:?} at offset {} in {} with bindings {}: {:?}",
+                                    o.1.st_value,
+                                    manifold.objects[o.0.obj].display_path(),
+                                    sym_bindings(&o.1),
+                                    o.1,
+                                );
+                            }
 
-                                    manifold[o.0.obj]
-                                        .shared
-                                        .get(SYSV_LOADER_BASE_ADDR)
-                                        .copied()
-                                        .unwrap() as i64
-                                        + o.1.st_value as i64
-                                })
-                                .unwrap_or_default()
-                        } else {
-                            b + entry.st_value as i64
-                        }
-                    } else {
-                        0
-                    }
+                            manifold[o.0.obj]
+                                .shared
+                                .get(SYSV_LOADER_BASE_ADDR)
+                                .copied()
+                                .unwrap() as i64
+                                + o.1.st_value as i64
+                        })
+                        .unwrap_or_default()
                 } else {
                     0
                 }
+            } else {
+                0
             };
 
             // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
@@ -143,8 +137,7 @@ impl Module for SysvReloc {
                     'find_symbol: for (lib_obj_handle, lib_obj) in
                         manifold.objects.enumerate().filter(|s| s.0 != section.obj)
                     {
-                        let Ok((_, lib_sym)) = lib_obj.find_symbol(name, manifold, lib_obj_handle)
-                        else {
+                        let Ok((_, lib_sym)) = lib_obj.find_symbol(name, manifold) else {
                             continue;
                         };
 
@@ -198,10 +191,8 @@ impl Module for SysvReloc {
                         .as_dynamic_symbol_table()?
                         .get_symbol(sym as usize, manifold)?;
 
-                    for (lib_obj_handle, lib_obj) in manifold.objects.enumerate() {
-                        let Ok((_, lib_sym)) =
-                            lib_obj.find_dynamic_symbol(name, manifold, lib_obj_handle)
-                        else {
+                    for (_, lib_obj) in manifold.objects.enumerate() {
+                        let Ok((_, lib_sym)) = lib_obj.find_dynamic_symbol(name, manifold) else {
                             continue;
                         };
                         if lib_sym.st_value == 0 {

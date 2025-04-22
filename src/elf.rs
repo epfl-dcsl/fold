@@ -165,3 +165,9 @@ impl<'a> ElfItemIterator<'a, SectionHeader> {
         self.find(|section| section.sh_type == sh_type)
     }
 }
+
+// —————————————————————————— Helpers for symbols ——————————————————————————— //
+
+pub fn sym_bindings(sym: &Sym) -> u8 {
+    sym.st_info >> 4
+}

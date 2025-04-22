@@ -1,10 +1,17 @@
+use alloc::borrow::ToOwned;
 use alloc::ffi::CString;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::ffi::CStr;
 use core::ops::Index;
 
+use goblin::elf::sym::{STB_GLOBAL, STB_LOCAL, STB_WEAK};
+use goblin::elf64::sym::Sym;
+
 use crate::arena::{Arena, Handle};
+use crate::elf::sym_bindings;
+use crate::error::FoldError;
 use crate::file::Mapping;
 use crate::object::{Object, Segment};
 use crate::share_map::ShareMap;
@@ -66,6 +73,32 @@ impl Manifold {
 
     pub fn add_search_paths(&mut self, paths: Vec<String>) {
         self.search_paths.extend(paths);
+    }
+
+    pub fn find_symbol<'a>(
+        &'a self,
+        name: &'a CStr,
+        local: Handle<Object>,
+    ) -> Result<(&'a Section, Sym), FoldError> {
+        if let Ok((section, sym)) = self.objects[local].find_symbol(name, self) {
+            if sym_bindings(&sym) == STB_LOCAL {
+                return Ok((section, sym));
+            }
+        }
+
+        let mut weak = Err(FoldError::SymbolNotFound(name.to_owned()));
+
+        for (_, obj) in self.objects.enumerate() {
+            if let Ok((section, sym)) = obj.find_dynamic_symbol(name, self) {
+                match sym_bindings(&sym) {
+                    STB_GLOBAL => return Ok((section, sym)),
+                    STB_WEAK => weak = Ok((section, sym)),
+                    _ => {}
+                }
+            }
+        }
+
+        weak
     }
 }
 
