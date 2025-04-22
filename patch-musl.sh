@@ -2,6 +2,7 @@
 
 STATUS_FILE=$(mktemp)
 PATCH_FILE=../musl.patch
+NEW_FILES=(src/glib/glib.c)
 
 error() {
     echo "$@"
@@ -12,6 +13,10 @@ error() {
 if [ "$(basename $PWD)" != "musl" ]; then
     cd musl || error Unable to locate musl subdirectory
 fi
+
+for file in "${NEW_FILES[@]}"; do
+    git add -N "$file"
+done
 
 # Compares the current unstaged changes with the patch
 git diff >$STATUS_FILE

@@ -38,3 +38,109 @@ index e5352602..35c5bde2 100644
  }
  
  void __stack_chk_fail(void)
+diff --git a/src/fcntl/fcntl.c b/src/fcntl/fcntl.c
+index d3bff5c4..9c6a1be5 100644
+--- a/src/fcntl/fcntl.c
++++ b/src/fcntl/fcntl.c
+@@ -4,11 +4,9 @@
+ #include <errno.h>
+ #include "syscall.h"
+ 
+-int fcntl(int fd, int cmd, ...)
++int vfcntl(int fd, int cmd, va_list ap)
+ {
+ 	unsigned long arg;
+-	va_list ap;
+-	va_start(ap, cmd);
+ 	arg = va_arg(ap, unsigned long);
+ 	va_end(ap);
+ 	if (cmd == F_SETFL) arg |= O_LARGEFILE;
+@@ -46,3 +44,9 @@ int fcntl(int fd, int cmd, ...)
+ 		return syscall(SYS_fcntl, fd, cmd, arg);
+ 	}
+ }
++
++int fcntl(int fd, int cmd, ...) {
++	va_list ap;
++	va_start(ap, cmd);
++	return vfcntl(fd, cmd, ap);
++}
+\ No newline at end of file
+diff --git a/src/glib/glib.c b/src/glib/glib.c
+new file mode 100644
+index 00000000..d8675a20
+--- /dev/null
++++ b/src/glib/glib.c
+@@ -0,0 +1,72 @@
++#include "syscall.h"
++#include <dirent.h>
++#include <fcntl.h>
++#include <stdarg.h>
++#include <stdio.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
++FILE *fopen64(const char *filename, const char *mode) {
++  return fopen(filename, mode);
++}
++
++// Has to be rewritten as there is no vopen function to pass va_args to
++int open64(const char *filename, int flags, ...) {
++  mode_t mode = 0;
++
++  if ((flags & O_CREAT) || (flags & O_TMPFILE) == O_TMPFILE) {
++    va_list ap;
++    va_start(ap, flags);
++    mode = va_arg(ap, mode_t);
++    va_end(ap);
++  }
++
++  int fd = __sys_open_cp(filename, flags, mode);
++  if (fd >= 0 && (flags & O_CLOEXEC))
++    __syscall(SYS_fcntl, fd, F_SETFD, FD_CLOEXEC);
++
++  return __syscall_ret(fd);
++}
++
++int stat64(const char *restrict file, struct stat *restrict buf) {
++  return stat(file, buf);
++}
++
++int lstat64(const char *restrict file, struct stat *restrict buf) {
++  return lstat(file, buf);
++}
++
++int fstat64(int fd, struct stat *restrict buf) { return fstat(fd, buf); }
++
++struct dirent *readdir64(DIR *dir) { return readdir(dir); }
++
++ssize_t pread64(int fildes, void *buf, size_t nbyte, off_t offset) {
++  return pread(fildes, buf, nbyte, offset);
++}
++
++ssize_t pwrite64(int fildes, const void *buf, size_t nbyte, off_t offset) {
++  return pwrite(fildes, buf, nbyte, offset);
++}
++
++int ftruncate64(int fd, off_t length) { return ftruncate(fd, length); }
++
++int vfcntl(int fd, int cmd, va_list ap);
++int fcntl64(int fd, int op, ... /* arg */) {
++  va_list ap;
++  va_start(ap, op);
++  return vfcntl(fd, op, ap);
++}
++
++void *mmap64(void *addr, size_t length, int prot, int flags, int fd,
++             off_t offset) {
++  return mmap(addr, length, prot, flags, fd, offset);
++}
++
++int __snprintf_chk(char *str, size_t maxlen, int flag, size_t strlen,
++                   const char *format, ...) {
++  va_list args;
++  va_start(args, format);
++
++  return vsnprintf(str, strlen, format, args);
++}
