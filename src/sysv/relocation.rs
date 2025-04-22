@@ -1,12 +1,13 @@
 use alloc::boxed::Box;
 use alloc::ffi::CString;
+use core::cell::LazyCell;
 use core::str::FromStr;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE, *};
 use goblin::elf::sym::STB_WEAK;
 use goblin::elf64::reloc::{self, Rela};
 
-use crate::elf::{sym_bindings, ElfItemIterator};
+use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::section::SectionT;
@@ -80,51 +81,55 @@ impl Module for SysvReloc {
 
             let a = rela.r_addend;
 
-            // TODO: this could be done later, to avoid useless computation if the relocation does not need
-            // the symbol's address. E.g. using lazy evaluation.
-            let s = 'symbol_search: {
-                // Get the symbol's name
-                let Ok(name) = section
-                    .get_linked_section(manifold)?
-                    .as_dynamic_symbol_table()?
-                    .get_symbol(sym as usize, manifold)
-                else {
-                    break 'symbol_search 0;
+            // Lazily computed to avoid overhead if the relocation does not use the symbol's address.
+            // Also, neat trick to warn for not found symbols only when the value is actually used.
+            let s = LazyCell::new(|| {
+                let (s, name) = 's: {
+                    // Get the symbol's name
+                    let Some(name) = section
+                        .get_linked_section(manifold)
+                        .ok()
+                        .and_then(|s| s.as_dynamic_symbol_table().ok())
+                        .and_then(|s| s.get_symbol(sym as usize, manifold).ok())
+                    else {
+                        break 's (None, None);
+                    };
+
+                    // Ignore empty symbols
+                    if name.is_empty() {
+                        break 's (None, Some(name));
+                    }
+
+                    // Find the related symbol in the loaded objects
+                    (
+                        manifold
+                            .find_symbol(name, section.obj)
+                            .map(|o| {
+                                manifold[o.0.obj]
+                                    .shared
+                                    .get(SYSV_LOADER_BASE_ADDR)
+                                    .copied()
+                                    .unwrap() as i64
+                                    + o.1.st_value as i64
+                            })
+                            .ok(),
+                        Some(name),
+                    )
                 };
 
-                // Ignore empty symbols
-                if name.is_empty() {
-                    break 'symbol_search 0;
+                if let Some(s) = s {
+                    s
+                } else {
+                    log::warn!("Unable to locate symbol {name:?}");
+                    0
                 }
-
-                // Find the related symbol in the loaded objects
-                manifold
-                    .find_symbol(name, section.obj)
-                    .map(|o| {
-                        manifold[o.0.obj]
-                            .shared
-                            .get(SYSV_LOADER_BASE_ADDR)
-                            .copied()
-                            .unwrap() as i64
-                            + o.1.st_value as i64
-                    })
-                    .unwrap_or_default()
-            };
+            });
 
             // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
             match r#type {
                 R_X86_64_NONE => {}
                 R_X86_64_64 => {
-                    if s == 0 {
-                        log::warn!(
-                            "Unable to locate symbol {:?}",
-                            section
-                                .get_linked_section(manifold)?
-                                .as_dynamic_symbol_table()?
-                                .get_symbol(sym as usize, manifold)
-                        )
-                    }
-                    apply_reloc!(addr, s + a, u64);
+                    apply_reloc!(addr, *s + a, u64);
                 }
                 R_X86_64_COPY => {
                     let name = section
@@ -157,31 +162,11 @@ impl Module for SysvReloc {
                     }
                 }
                 R_X86_64_JUMP_SLOT => {
-                    if s == 0 {
-                        log::warn!(
-                            "Unable to locate symbol {:?}",
-                            section
-                                .get_linked_section(manifold)?
-                                .as_dynamic_symbol_table()?
-                                .get_symbol(sym as usize, manifold)
-                        )
-                    }
-
-                    apply_reloc!(addr, s, u64);
+                    apply_reloc!(addr, *s, u64);
                 }
                 R_X86_64_GLOB_DAT => {
                     if (rela.r_info & (1 << STB_WEAK as u64)) != 0 {
-                        if s == 0 {
-                            log::warn!(
-                                "Unable to locate symbol {:?}",
-                                section
-                                    .get_linked_section(manifold)?
-                                    .as_dynamic_symbol_table()?
-                                    .get_symbol(sym as usize, manifold)
-                            )
-                        }
-
-                        apply_reloc!(addr, s, u64);
+                        apply_reloc!(addr, *s, u64);
                     }
 
                     let name = section
@@ -212,13 +197,13 @@ impl Module for SysvReloc {
                     }
                 }
                 R_X86_64_32 | R_X86_64_32S => {
-                    apply_reloc!(addr, s + a, u32);
+                    apply_reloc!(addr, *s + a, u32);
                 }
                 R_X86_64_16 => {
-                    apply_reloc!(addr, s + a, u16);
+                    apply_reloc!(addr, *s + a, u16);
                 }
                 R_X86_64_8 => {
-                    apply_reloc!(addr, s + a, u8);
+                    apply_reloc!(addr, *s + a, u8);
                 }
                 R_X86_64_RELATIVE => {
                     apply_reloc!(addr, b + a, u64);
@@ -230,7 +215,7 @@ impl Module for SysvReloc {
                 R_X86_64_TLSDESC => {
                     apply_reloc!(
                         addr,
-                        s + a + *manifold.shared.get(TCB_KEY).unwrap() as i64,
+                        *s + a + *manifold.shared.get(TCB_KEY).unwrap() as i64,
                         u128
                     );
                 }
