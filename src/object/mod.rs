@@ -4,11 +4,12 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::ffi::CStr;
 
+use goblin::elf::section_header::SHN_UNDEF;
 use goblin::elf::sym::{STB_GLOBAL, STB_LOCAL, STB_WEAK};
 use goblin::elf64::sym::Sym;
 
 use crate::arena::Handle;
-use crate::elf::{cst, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
+use crate::elf::{cst, sym_bindings, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
 use crate::error::FoldError;
 use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
@@ -138,16 +139,11 @@ impl Object {
         &'a self,
         symbol: &'_ CStr,
         manifold: &'a Manifold,
-        obj: Handle<Object>,
         symbol_table_mapper: impl Fn(&'a Section) -> Result<SymbolTableSection<'a>, FoldError>,
     ) -> Result<(&'a Section, Sym), FoldError> {
         let mut weak_result = Err(FoldError::SymbolNotFound(symbol.to_owned()));
 
-        // TODO: why does this iterate over the other objects' sections ? And we need to add priority for LOCAL
-        // symbols over the rest.
-        //
-        // Short answer: the actual iteration over the other objects and priority for local entries is "handled"
-        // directly in relocation.rs. It should be fixed to be fully handled here.
+        // Attempt to find a LOCAL symbol in the current object
         for section in self
             .sections
             .iter()
@@ -166,42 +162,47 @@ impl Object {
             let entry: Option<(&Sym, &CStr)> = matching_entries
                 .iter()
                 .find(|(sym, _)| {
-                    let vis = sym.st_info & 0b111;
+                    let binding = sym_bindings(sym);
 
-                    (vis == STB_LOCAL && section.section.obj == obj) || vis == STB_GLOBAL
+                    (binding == STB_LOCAL || binding == STB_GLOBAL)
+                        && sym.st_shndx != SHN_UNDEF as u16
                 })
                 .or_else(|| matching_entries.first())
                 .cloned();
 
             // If an non-weak entry is found, return it.
             if let Some((sym, _)) = entry {
-                if sym.st_info & STB_WEAK == 0 {
-                    return Ok((section.section, *sym));
-                }
+                if sym.st_shndx != SHN_UNDEF as u16 {
+                    if sym.st_info & STB_WEAK == 0 {
+                        return Ok((section.section, *sym));
+                    }
 
-                weak_result = Ok((section.section, *sym))
+                    weak_result = Ok((section.section, *sym))
+                }
             }
         }
 
         weak_result
     }
 
+    /// Find the given symbol in one of the [`SHT_STRTAB`](goblin::elf::section_header::SHT_STRTAB) section of this object.
+    /// Symbols with binding [`STB_LOCAL`] or [`STB_GLOBAL`] take priority over [`STB_WEAK`].
     pub fn find_symbol<'a>(
         &'a self,
         symbol: &'_ CStr,
         manifold: &'a Manifold,
-        obj: Handle<Object>,
     ) -> Result<(&'a Section, Sym), FoldError> {
-        self.find_symbol_(symbol, manifold, obj, |s| s.as_symbol_table())
+        self.find_symbol_(symbol, manifold, |s| s.as_symbol_table())
     }
 
+    /// Find the given symbol in one of the [`SHT_DYNSYM`](goblin::elf::section_header::SHT_DYNSYM) section of this object.
+    /// Symbols with binding [`STB_LOCAL`] or [`STB_GLOBAL`] take priority over [`STB_WEAK`].
     pub fn find_dynamic_symbol<'a>(
         &'a self,
         symbol: &'_ CStr,
         manifold: &'a Manifold,
-        obj: Handle<Object>,
     ) -> Result<(&'a Section, Sym), FoldError> {
-        self.find_symbol_(symbol, manifold, obj, |s| s.as_dynamic_symbol_table())
+        self.find_symbol_(symbol, manifold, |s| s.as_dynamic_symbol_table())
     }
 }
 

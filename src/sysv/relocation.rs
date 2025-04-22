@@ -1,9 +1,9 @@
 use alloc::boxed::Box;
 use alloc::ffi::CString;
+use core::cell::LazyCell;
 use core::str::FromStr;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE, *};
-use goblin::elf::section_header::SHN_UNDEF;
 use goblin::elf::sym::STB_WEAK;
 use goblin::elf64::reloc::{self, Rela};
 
@@ -69,7 +69,6 @@ impl Module for SysvReloc {
                     .unwrap()
                     .as_c_str(),
                 manifold,
-                section.obj,
             )
             .map(|entry| b + entry.1.st_value as i64)
             .unwrap_or_default();
@@ -80,19 +79,30 @@ impl Module for SysvReloc {
             let sym = reloc::r_sym(rela.r_info);
 
             let a = rela.r_addend;
-            let s = section
-                .get_linked_section(manifold)?
-                .as_dynamic_symbol_table()?
-                .get_symbol_and_entry(sym as usize, manifold)
-                .map_err(SysvError::FoldError)
-                .and_then(|(name, entry)| {
-                    if entry.st_shndx as u32 == SHN_UNDEF {
+
+            // Lazily computed to avoid overhead if the relocation does not use the symbol's address.
+            // Also, neat trick to warn for not found symbols only when the value is actually used.
+            let s = LazyCell::new(|| {
+                let (s, name) = 's: {
+                    // Get the symbol's name
+                    let Some(name) = section
+                        .get_linked_section(manifold)
+                        .ok()
+                        .and_then(|s| s.as_dynamic_symbol_table().ok())
+                        .and_then(|s| s.get_symbol(sym as usize, manifold).ok())
+                    else {
+                        break 's (None, None);
+                    };
+
+                    // Ignore empty symbols
+                    if name.is_empty() {
+                        break 's (None, Some(name));
+                    }
+
+                    // Find the related symbol in the loaded objects
+                    (
                         manifold
-                            .objects
-                            .enumerate()
-                            .filter(|o| o.0 != section.obj)
-                            .find_map(|o| o.1.find_symbol(name, manifold, section.obj).ok())
-                            .ok_or(SysvError::Other)
+                            .find_symbol(name, section.obj)
                             .map(|o| {
                                 manifold[o.0.obj]
                                     .shared
@@ -101,17 +111,24 @@ impl Module for SysvReloc {
                                     .unwrap() as i64
                                     + o.1.st_value as i64
                             })
-                    } else {
-                        Ok(b + entry.st_value as i64)
-                    }
-                })
-                .unwrap_or_default();
+                            .ok(),
+                        Some(name),
+                    )
+                };
+
+                if let Some(s) = s {
+                    s
+                } else {
+                    log::warn!("Unable to locate symbol {name:?}");
+                    0
+                }
+            });
 
             // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
             match r#type {
                 R_X86_64_NONE => {}
                 R_X86_64_64 => {
-                    apply_reloc!(addr, s + a, u64);
+                    apply_reloc!(addr, *s + a, u64);
                 }
                 R_X86_64_COPY => {
                     let name = section
@@ -119,11 +136,10 @@ impl Module for SysvReloc {
                         .as_dynamic_symbol_table()?
                         .get_symbol(sym as usize, manifold)?;
 
-                    'find_symbol: for (lib_obj_handle, lib_obj) in
+                    'find_symbol: for (_, lib_obj) in
                         manifold.objects.enumerate().filter(|s| s.0 != section.obj)
                     {
-                        let Ok((_, lib_sym)) = lib_obj.find_symbol(name, manifold, lib_obj_handle)
-                        else {
+                        let Ok((_, lib_sym)) = lib_obj.find_symbol(name, manifold) else {
                             continue;
                         };
 
@@ -148,11 +164,11 @@ impl Module for SysvReloc {
                     }
                 }
                 R_X86_64_JUMP_SLOT => {
-                    apply_reloc!(addr, s, u64);
+                    apply_reloc!(addr, *s, u64);
                 }
                 R_X86_64_GLOB_DAT => {
                     if (rela.r_info & (1 << STB_WEAK as u64)) != 0 {
-                        apply_reloc!(addr, s, u64);
+                        apply_reloc!(addr, *s, u64);
                     }
 
                     let name = section
@@ -160,10 +176,8 @@ impl Module for SysvReloc {
                         .as_dynamic_symbol_table()?
                         .get_symbol(sym as usize, manifold)?;
 
-                    for (lib_obj_handle, lib_obj) in manifold.objects.enumerate() {
-                        let Ok((_, lib_sym)) =
-                            lib_obj.find_dynamic_symbol(name, manifold, lib_obj_handle)
-                        else {
+                    for (_, lib_obj) in manifold.objects.enumerate() {
+                        let Ok((_, lib_sym)) = lib_obj.find_dynamic_symbol(name, manifold) else {
                             continue;
                         };
                         if lib_sym.st_value == 0 {
@@ -185,13 +199,13 @@ impl Module for SysvReloc {
                     }
                 }
                 R_X86_64_32 | R_X86_64_32S => {
-                    apply_reloc!(addr, s + a, u32);
+                    apply_reloc!(addr, *s + a, u32);
                 }
                 R_X86_64_16 => {
-                    apply_reloc!(addr, s + a, u16);
+                    apply_reloc!(addr, *s + a, u16);
                 }
                 R_X86_64_8 => {
-                    apply_reloc!(addr, s + a, u8);
+                    apply_reloc!(addr, *s + a, u8);
                 }
                 R_X86_64_RELATIVE => {
                     apply_reloc!(addr, b + a, u64);

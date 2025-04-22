@@ -2,6 +2,6 @@ root_dir  := justfile_directory()
 linker    := root_dir + "/../target/x86_64-unknown-linux-none/debug/fold"
 
 build:
-	../sqlite/configure --disable-threadsafe --dev --debug --disable-shared --disable-static
+	../sqlite/configure --dev --debug --disable-threadsafe --disable-shared --disable-static --disable-readline
 	make
 	patchelf --set-interpreter {{linker}} sqlite3

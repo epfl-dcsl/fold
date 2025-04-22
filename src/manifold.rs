@@ -1,10 +1,17 @@
+use alloc::borrow::ToOwned;
 use alloc::ffi::CString;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::ffi::CStr;
 use core::ops::Index;
 
+use goblin::elf::sym::{STB_GLOBAL, STB_LOCAL, STB_WEAK};
+use goblin::elf64::sym::Sym;
+
 use crate::arena::{Arena, Handle};
+use crate::elf::sym_bindings;
+use crate::error::FoldError;
 use crate::file::Mapping;
 use crate::object::{Object, Segment};
 use crate::share_map::ShareMap;
@@ -66,6 +73,44 @@ impl Manifold {
 
     pub fn add_search_paths(&mut self, paths: Vec<String>) {
         self.search_paths.extend(paths);
+    }
+
+    /// Find the given symbol across the different loaded objects. Symbols with NDX set to
+    /// [`SHN_UNDEF`](goblin::elf::section_header::SHN_UNDEF) are ignored.
+    ///
+    /// Applies the following priority:
+    /// - Symbol with binding [`STB_LOCAL`] present in an [`SHT_STRTAB`](goblin::elf::section_header::SHT_STRTAB) section
+    ///   of the object pointed at by `local`.
+    /// - Symbol with binding [`STB_GLOBAL`] present in any [`SHT_DYNSYM`](goblin::elf::section_header::SHT_DYNSYM). Object
+    ///   are searched in the same order as they were loaded.
+    /// - Symbol with binding [`STB_WEAK`]. Same as above.
+    pub fn find_symbol<'a>(
+        &'a self,
+        name: &'a CStr,
+        local: Handle<Object>,
+    ) -> Result<(&'a Section, Sym), FoldError> {
+        // Search the local object for a `STB_LOCAL` entry.
+        if let Ok((section, sym)) = self.objects[local].find_symbol(name, self) {
+            if sym_bindings(&sym) == STB_LOCAL {
+                return Ok((section, sym));
+            }
+        }
+
+        let mut weak = Err(FoldError::SymbolNotFound(name.to_owned()));
+
+        // Go through all loaded object to find a `STB_GLOBAL`, and stores the first `STB_WEAK`
+        // in case no `STB_GLOBAL` is found.
+        for (_, obj) in self.objects.enumerate() {
+            if let Ok((section, sym)) = obj.find_dynamic_symbol(name, self) {
+                match sym_bindings(&sym) {
+                    STB_GLOBAL => return Ok((section, sym)),
+                    STB_WEAK if weak.is_err() => weak = Ok((section, sym)),
+                    _ => {}
+                }
+            }
+        }
+
+        weak
     }
 }
 
