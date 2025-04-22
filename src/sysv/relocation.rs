@@ -81,38 +81,57 @@ impl Module for SysvReloc {
             let sym = reloc::r_sym(rela.r_info);
 
             let a = rela.r_addend;
-            let s = section
-                .get_linked_section(manifold)?
-                .as_dynamic_symbol_table()?
-                .get_symbol_and_entry(sym as usize, manifold)
-                .map_err(SysvError::FoldError)
-                .and_then(|(name, entry)| {
-                    if entry.st_shndx as u32 == SHN_UNDEF {
-                        manifold
-                            .objects
-                            .enumerate()
-                            .filter(|o| o.0 != section.obj)
-                            .find_map(|o| o.1.find_symbol(name, manifold, section.obj).ok())
-                            .ok_or(SysvError::Other)
-                            .map(|o| {
-                                manifold[o.0.obj]
-                                    .shared
-                                    .get(SYSV_LOADER_BASE_ADDR)
-                                    .copied()
-                                    .unwrap() as i64
-                                    + o.1.st_value as i64
-                            })
+            let s = {
+                if let Ok((name, entry)) = section
+                    .get_linked_section(manifold)?
+                    .as_dynamic_symbol_table()?
+                    .get_symbol_and_entry(sym as usize, manifold)
+                {
+                    if !name.is_empty() {
+                        if entry.st_shndx as u32 == SHN_UNDEF {
+                            manifold
+                                .objects
+                                .enumerate()
+                                .filter(|o| o.0 != section.obj)
+                                .find_map(|o| {
+                                    o.1.find_dynamic_symbol(name, manifold, section.obj).ok()
+                                })
+                                .ok_or(SysvError::Other)
+                                .map(|o| {
+                                    log::info!("Found symbol {name:?} at offset {} ", o.1.st_value);
+
+                                    manifold[o.0.obj]
+                                        .shared
+                                        .get(SYSV_LOADER_BASE_ADDR)
+                                        .copied()
+                                        .unwrap() as i64
+                                        + o.1.st_value as i64
+                                })
+                                .unwrap_or_default()
+                        } else {
+                            b + entry.st_value as i64
+                        }
                     } else {
-                        Ok(b + entry.st_value as i64)
+                        0
                     }
-                })
-                .unwrap_or_default();
+                } else {
+                    0
+                }
+            };
 
             // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
             match r#type {
                 R_X86_64_NONE => {}
                 R_X86_64_64 => {
-
+                    if s == 0 {
+                        log::warn!(
+                            "Unable to locate symbol {:?}",
+                            section
+                                .get_linked_section(manifold)?
+                                .as_dynamic_symbol_table()?
+                                .get_symbol(sym as usize, manifold)
+                        )
+                    }
                     apply_reloc!(addr, s + a, u64);
                 }
                 R_X86_64_COPY => {
@@ -147,10 +166,30 @@ impl Module for SysvReloc {
                     }
                 }
                 R_X86_64_JUMP_SLOT => {
+                    if s == 0 {
+                        log::warn!(
+                            "Unable to locate symbol {:?}",
+                            section
+                                .get_linked_section(manifold)?
+                                .as_dynamic_symbol_table()?
+                                .get_symbol(sym as usize, manifold)
+                        )
+                    }
+
                     apply_reloc!(addr, s, u64);
                 }
                 R_X86_64_GLOB_DAT => {
                     if (rela.r_info & (1 << STB_WEAK as u64)) != 0 {
+                        if s == 0 {
+                            log::warn!(
+                                "Unable to locate symbol {:?}",
+                                section
+                                    .get_linked_section(manifold)?
+                                    .as_dynamic_symbol_table()?
+                                    .get_symbol(sym as usize, manifold)
+                            )
+                        }
+
                         apply_reloc!(addr, s, u64);
                     }
 
