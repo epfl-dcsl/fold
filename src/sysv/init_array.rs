@@ -6,19 +6,7 @@ use crate::module::Module;
 use crate::sysv::loader::SYSV_LOADER_BASE_ADDR;
 use crate::Handle;
 
-pub struct SysvInitArray {}
-
-impl SysvInitArray {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for SysvInitArray {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub struct SysvInitArray;
 
 impl Module for SysvInitArray {
     fn name(&self) -> &'static str {

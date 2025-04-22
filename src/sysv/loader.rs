@@ -13,17 +13,11 @@ use crate::{Handle, Segment};
 
 pub const SYSV_LOADER_BASE_ADDR: ShareMapKey<usize> = ShareMapKey::new("sys_loader");
 
-pub struct SysvLoader {}
+pub struct SysvLoader;
 
 impl SysvLoader {
     pub fn new() -> Self {
         Self {}
-    }
-}
-
-impl Default for SysvLoader {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

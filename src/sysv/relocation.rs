@@ -24,19 +24,8 @@ macro_rules! apply_reloc {
     };
 }
 
-pub struct SysvReloc {}
-
-impl SysvReloc {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for SysvReloc {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+#[derive(Default)]
+pub struct SysvReloc;
 
 impl Module for SysvReloc {
     fn name(&self) -> &'static str {

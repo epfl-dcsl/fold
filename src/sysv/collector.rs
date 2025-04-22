@@ -67,19 +67,7 @@ impl Debug for SysvCollectorEntry {
 pub const SYSV_COLLECTOR_RESULT_KEY: ShareMapKey<Vec<SysvCollectorEntry>> =
     ShareMapKey::new("sysv_collector");
 
-pub struct SysvCollector {}
-
-impl SysvCollector {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for SysvCollector {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub struct SysvCollector;
 
 impl Module for SysvCollector {
     fn name(&self) -> &'static str {

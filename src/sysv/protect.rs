@@ -8,19 +8,8 @@ use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::{Handle, Segment};
 
-pub struct SysvProtect {}
-
-impl SysvProtect {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for SysvProtect {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+#[derive(Default)]
+pub struct SysvProtect;
 
 fn flags_to_prot(p_flags: u32) -> MprotectFlags {
     let mut prot = MprotectFlags::empty();

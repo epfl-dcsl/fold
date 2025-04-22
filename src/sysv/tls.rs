@@ -11,19 +11,7 @@ use crate::share_map::ShareMapKey;
 const TCB_HEAD_SIZE: usize = 704;
 pub const TCB_KEY: ShareMapKey<usize> = ShareMapKey::new("TLS");
 
-pub struct SysvTls {}
-
-impl SysvTls {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for SysvTls {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub struct SysvTls;
 
 impl Module for SysvTls {
     fn name(&self) -> &'static str {
