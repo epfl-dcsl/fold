@@ -19,6 +19,9 @@ build:
 sqlite-build:
 	@just --justfile sqlite-build/justfile build
 
+release:
+	cargo +nightly build --release --target {{target}} -Z build-std=core,alloc
+
 check:
 	cargo +nightly check --target {{target}} -Z build-std=core,alloc
 	
