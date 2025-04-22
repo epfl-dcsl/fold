@@ -25,13 +25,7 @@ macro_rules! apply_reloc {
 
 // ———————————————————————————————— Library relocation ————————————————————————————————— //
 
-pub struct SysvRelocLib {}
-
-impl SysvRelocLib {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub struct SysvRelocLib;
 
 impl Module for SysvRelocLib {
     fn name(&self) -> &'static str {
@@ -56,19 +50,7 @@ impl Module for SysvRelocLib {
 
 // ———————————————————————————————— Executable relocation ————————————————————————————————— //
 
-pub struct SysvReloc {}
-
-impl SysvReloc {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for SysvReloc {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub struct SysvReloc;
 
 impl Module for SysvReloc {
     fn name(&self) -> &'static str {

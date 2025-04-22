@@ -7,19 +7,7 @@ use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::{Env, Handle};
 
-pub struct SysvStart {}
-
-impl SysvStart {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for SysvStart {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub struct SysvStart;
 
 impl Module for SysvStart {
     fn name(&self) -> &'static str {
