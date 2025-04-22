@@ -68,10 +68,10 @@ index d3bff5c4..9c6a1be5 100644
 \ No newline at end of file
 diff --git a/src/glib/glib.c b/src/glib/glib.c
 new file mode 100644
-index 00000000..d8675a20
+index 00000000..15839663
 --- /dev/null
 +++ b/src/glib/glib.c
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,64 @@
 +#include "syscall.h"
 +#include <dirent.h>
 +#include <fcntl.h>
@@ -135,12 +135,4 @@ index 00000000..d8675a20
 +void *mmap64(void *addr, size_t length, int prot, int flags, int fd,
 +             off_t offset) {
 +  return mmap(addr, length, prot, flags, fd, offset);
-+}
-+
-+int __snprintf_chk(char *str, size_t maxlen, int flag, size_t strlen,
-+                   const char *format, ...) {
-+  va_list args;
-+  va_start(args, format);
-+
-+  return vsnprintf(str, strlen, format, args);
 +}
