@@ -1,0 +1,27 @@
+services:
+  fold:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    stdin_open: true
+    tty: true
+    command: sh
+    volumes:
+      - ./Cargo.toml:/home/user/Cargo.toml
+      - ./src:/home/user/src
+      - ./x86_64-unknown-linux-none.json:/home/user/x86_64-unknown-linux-none.json
+      - ./justfile:/home/user/justfile
+      - ./sqlite:/home/user/sqlite
+      - ./sqlite-build/justfile:/home/user/sqlite-build/justfile
+      - ./musl:/home/user/musl
+      - ./patch-musl.sh:/home/user/patch-musl.sh
+      - ./samples:/home/user/samples
+      - ./.git:/home/user/.git
+      - ./musl.patch:/home/user/musl.patch
+
+      - target:/home/user/target
+      - sqlite-build:/home/user/sqlite-build
+
+volumes:
+  target:
+  sqlite-build:

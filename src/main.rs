@@ -28,7 +28,7 @@ fn entry(env: Env) -> ! {
         .phase("collect")
         .register(
             SysvRemappingCollector::new()
-                .replace("libc.so", "libc.so")
+                .replace_multiple(&[("libc.so", "libc.so"), ("libc.musl-x86_64.so", "libc.so")])
                 .drop_multiple(&[
                     "ld-linux-x86-64.so",
                     "libcrypt.so",

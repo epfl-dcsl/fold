@@ -13,7 +13,7 @@ build:
 
 
 	@echo 'ARCH=x86_64' > musl/config.mak
-	@sh patch-musl.sh
+	@bash patch-musl.sh
 	@make -C musl
 
 sqlite-build:
