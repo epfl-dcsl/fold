@@ -13,8 +13,7 @@ use crate::module::Module;
 use crate::object::section::SectionT;
 use crate::sysv::error::SysvError;
 use crate::sysv::loader::SYSV_LOADER_BASE_ADDR;
-use crate::sysv::tls::TCB_KEY;
-use crate::Handle;
+use crate::{Handle, Object, Section};
 
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {
@@ -24,7 +23,33 @@ macro_rules! apply_reloc {
     };
 }
 
-#[derive(Default)]
+// ———————————————————————————————— Library relocation ————————————————————————————————— //
+
+pub struct SysvRelocLib;
+
+impl Module for SysvRelocLib {
+    fn name(&self) -> &'static str {
+        "sysv-reloc-lib"
+    }
+
+    fn process_section(
+        &mut self,
+        section_handle: Handle<crate::Section>,
+        manifold: &mut Manifold,
+    ) -> Result<(), Box<dyn core::fmt::Debug>> {
+        let section = &manifold.sections[section_handle];
+        let obj = &manifold.objects[section.obj];
+
+        if !obj.is_lib {
+            ()
+        }
+
+        process_one_reloc(obj, section, manifold)
+    }
+}
+
+// ———————————————————————————————— Executable relocation ————————————————————————————————— //
+
 pub struct SysvReloc;
 
 impl Module for SysvReloc {
@@ -40,178 +65,178 @@ impl Module for SysvReloc {
         let section = &manifold.sections[section_handle];
         let obj = &manifold.objects[section.obj];
 
-        log::info!(
-            "Process relocation of section {:?} for object {}...",
-            section.get_display_name(manifold).unwrap_or_default(),
-            obj.display_path()
-        );
-
-        let base = obj
-            .shared
-            .get(SYSV_LOADER_BASE_ADDR)
-            .copied()
-            .ok_or(SysvError::RelaSectionWithoutVirtualAdresses)? as *mut u8;
-
-        let b = base as i64;
-        let _got: i64 = obj
-            .find_symbol(
-                CString::from_str("_GLOBAL_OFFSET_TABLE_")
-                    .unwrap()
-                    .as_c_str(),
-                manifold,
-            )
-            .map(|entry| b + entry.1.st_value as i64)
-            .unwrap_or_default();
-
-        'rela: for rela in ElfItemIterator::<Rela>::from_section(section) {
-            let addr = unsafe { base.add(rela.r_offset as usize) };
-            let r#type = reloc::r_type(rela.r_info);
-            let sym = reloc::r_sym(rela.r_info);
-
-            let a = rela.r_addend;
-
-            // Lazily computed to avoid overhead if the relocation does not use the symbol's address.
-            // Also, neat trick to warn for not found symbols only when the value is actually used.
-            let s = LazyCell::new(|| {
-                let (s, name) = 's: {
-                    // Get the symbol's name
-                    let Some(name) = section
-                        .get_linked_section(manifold)
-                        .ok()
-                        .and_then(|s| s.as_dynamic_symbol_table().ok())
-                        .and_then(|s| s.get_symbol(sym as usize, manifold).ok())
-                    else {
-                        break 's (None, None);
-                    };
-
-                    // Ignore empty symbols
-                    if name.is_empty() {
-                        break 's (None, Some(name));
-                    }
-
-                    // Find the related symbol in the loaded objects
-                    (
-                        manifold
-                            .find_symbol(name, section.obj)
-                            .map(|o| {
-                                manifold[o.0.obj]
-                                    .shared
-                                    .get(SYSV_LOADER_BASE_ADDR)
-                                    .copied()
-                                    .unwrap() as i64
-                                    + o.1.st_value as i64
-                            })
-                            .ok(),
-                        Some(name),
-                    )
-                };
-
-                if let Some(s) = s {
-                    s
-                } else {
-                    log::warn!("Unable to locate symbol {name:?}");
-                    0
-                }
-            });
-
-            // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
-            match r#type {
-                R_X86_64_NONE => {}
-                R_X86_64_64 => {
-                    apply_reloc!(addr, *s + a, u64);
-                }
-                R_X86_64_COPY => {
-                    let name = section
-                        .get_linked_section(manifold)?
-                        .as_dynamic_symbol_table()?
-                        .get_symbol(sym as usize, manifold)?;
-
-                    'find_symbol: for (_, lib_obj) in
-                        manifold.objects.enumerate().filter(|s| s.0 != section.obj)
-                    {
-                        let Ok((_, lib_sym)) = lib_obj.find_symbol(name, manifold) else {
-                            continue;
-                        };
-
-                        // Locates the section containing the symbol.
-                        let container = &manifold[lib_obj.sections[lib_sym.st_shndx as usize]];
-
-                        let start = lib_sym.st_value as usize + container.offset - container.addr;
-
-                        let lib_content = container.mapping.bytes().as_ptr() as usize;
-
-                        unsafe {
-                            core::ptr::copy_nonoverlapping(
-                                (lib_content + start) as *const u8,
-                                addr,
-                                lib_sym.st_size as usize,
-                            );
-                            break 'find_symbol;
-                        }
-                    }
-                }
-                R_X86_64_JUMP_SLOT => {
-                    apply_reloc!(addr, *s, u64);
-                }
-                R_X86_64_GLOB_DAT => {
-                    if (rela.r_info & (1 << STB_WEAK as u64)) != 0 {
-                        apply_reloc!(addr, *s, u64);
-                    }
-
-                    let name = section
-                        .get_linked_section(manifold)?
-                        .as_dynamic_symbol_table()?
-                        .get_symbol(sym as usize, manifold)?;
-
-                    for (_, lib_obj) in manifold.objects.enumerate() {
-                        let Ok((_, lib_sym)) = lib_obj.find_dynamic_symbol(name, manifold) else {
-                            continue;
-                        };
-                        if lib_sym.st_value == 0 {
-                            continue;
-                        }
-
-                        // Locates the section containing the symbol.
-                        let container = &manifold[lib_obj.sections[lib_sym.st_shndx as usize]];
-                        let start = lib_sym.st_value as usize + container.offset - container.addr;
-
-                        let lib_content = lib_obj
-                            .shared
-                            .get(SYSV_LOADER_BASE_ADDR)
-                            .copied()
-                            .unwrap_or_default();
-
-                        apply_reloc!(addr, lib_content + start, u64);
-                        continue 'rela;
-                    }
-                }
-                R_X86_64_32 | R_X86_64_32S => {
-                    apply_reloc!(addr, *s + a, u32);
-                }
-                R_X86_64_16 => {
-                    apply_reloc!(addr, *s + a, u16);
-                }
-                R_X86_64_8 => {
-                    apply_reloc!(addr, *s + a, u8);
-                }
-                R_X86_64_RELATIVE => {
-                    apply_reloc!(addr, b + a, u64);
-                }
-                R_X86_64_IRELATIVE => {
-                    let code: extern "C" fn() -> i64 = unsafe { core::mem::transmute(b + a) };
-                    apply_reloc!(addr, code(), i64);
-                }
-                R_X86_64_TLSDESC => {
-                    apply_reloc!(
-                        addr,
-                        *s + a + *manifold.shared.get(TCB_KEY).unwrap() as i64,
-                        u128
-                    );
-                }
-                _ => panic!("unknown rela type 0x{:x}", r#type),
-            };
+        if obj.is_lib {
+            ()
         }
 
-        Ok(())
+        process_one_reloc(obj, section, manifold)
     }
+}
+
+// ———————————————————————————————— Relocation ————————————————————————————————— //
+
+fn process_one_reloc(
+    obj: &Object,
+    section: &Section,
+    manifold: &Manifold,
+) -> Result<(), Box<dyn core::fmt::Debug>> {
+    log::info!(
+        "Process relocation of section {:?} for object {}...",
+        section.get_display_name(manifold).unwrap_or_default(),
+        obj.display_path()
+    );
+
+    let base = obj
+        .shared
+        .get(SYSV_LOADER_BASE_ADDR)
+        .copied()
+        .ok_or(SysvError::RelaSectionWithoutVirtualAdresses)? as *mut u8;
+
+    let b = base as i64;
+    let _got: i64 = obj
+        .find_symbol(
+            CString::from_str("_GLOBAL_OFFSET_TABLE_")
+                .unwrap()
+                .as_c_str(),
+            manifold,
+        )
+        .map(|entry| b + entry.1.st_value as i64)
+        .unwrap_or_default();
+
+    'rela: for rela in ElfItemIterator::<Rela>::from_section(section) {
+        let addr = unsafe { base.add(rela.r_offset as usize) };
+        let r#type = reloc::r_type(rela.r_info);
+        let sym = reloc::r_sym(rela.r_info);
+
+        let a = rela.r_addend;
+
+        // Lazily computed to avoid overhead if the relocation does not use the symbol's address.
+        // Also, neat trick to warn for not found symbols only when the value is actually used.
+        let s = LazyCell::new(|| {
+            let (s, name) = 's: {
+                // Get the symbol's name
+                let Some(name) = section
+                    .get_linked_section(manifold)
+                    .ok()
+                    .and_then(|s| s.as_dynamic_symbol_table().ok())
+                    .and_then(|s| s.get_symbol_name(sym as usize, manifold).ok())
+                else {
+                    break 's (None, None);
+                };
+
+                // Ignore empty symbols
+                if name.is_empty() {
+                    break 's (None, Some(name));
+                }
+
+                // Find the related symbol in the loaded objects
+                (
+                    manifold
+                        .find_symbol(name, section.obj)
+                        .map(|(section, sym)| {
+                            manifold[section.obj]
+                                .shared
+                                .get(SYSV_LOADER_BASE_ADDR)
+                                .copied()
+                                .unwrap() as i64
+                                + sym.st_value as i64
+                        })
+                        .ok(),
+                    Some(name),
+                )
+            };
+
+            s.unwrap_or_else(|| {
+                log::warn!("Unable to locate symbol {name:?}");
+                0
+            })
+        });
+
+        // See https://web.archive.org/web/20250319095707/https://gitlab.com/x86-psABIs/x86-64-ABI
+        match r#type {
+            R_X86_64_NONE => {}
+            R_X86_64_64 => {
+                apply_reloc!(addr, *s + a, u64);
+            }
+            R_X86_64_COPY => {
+                let name = section
+                    .get_linked_section(manifold)?
+                    .as_dynamic_symbol_table()?
+                    .get_symbol_name(sym as usize, manifold)?;
+
+                'find_symbol: for (_, lib_obj) in
+                    manifold.objects.enumerate().filter(|s| s.0 != section.obj)
+                {
+                    let Ok((_, lib_sym)) = lib_obj.find_symbol(name, manifold) else {
+                        continue;
+                    };
+
+                    let src = *lib_obj.shared.get(SYSV_LOADER_BASE_ADDR).unwrap_or(&0)
+                        + lib_sym.st_value as usize;
+
+                    unsafe {
+                        core::ptr::copy_nonoverlapping(
+                            src as *const u8,
+                            addr,
+                            lib_sym.st_size as usize,
+                        );
+                        break 'find_symbol;
+                    }
+                }
+            }
+            R_X86_64_JUMP_SLOT => {
+                apply_reloc!(addr, *s, u64);
+            }
+            R_X86_64_GLOB_DAT => {
+                if (rela.r_info & (1 << STB_WEAK as u64)) != 0 {
+                    apply_reloc!(addr, *s, u64);
+                }
+
+                let name = section
+                    .get_linked_section(manifold)?
+                    .as_dynamic_symbol_table()?
+                    .get_symbol_name(sym as usize, manifold)?;
+
+                for (_, lib_obj) in manifold.objects.enumerate() {
+                    let Ok((container, lib_sym)) = lib_obj.find_dynamic_symbol(name, manifold)
+                    else {
+                        continue;
+                    };
+                    if lib_sym.st_value == 0 {
+                        continue;
+                    }
+
+                    let start = lib_sym.st_value as usize + container.offset - container.addr;
+
+                    let lib_content = lib_obj
+                        .shared
+                        .get(SYSV_LOADER_BASE_ADDR)
+                        .copied()
+                        .unwrap_or_default();
+
+                    apply_reloc!(addr, lib_content + start, u64);
+                    continue 'rela;
+                }
+            }
+            R_X86_64_32 | R_X86_64_32S => {
+                apply_reloc!(addr, *s + a, u32);
+            }
+            R_X86_64_16 => {
+                apply_reloc!(addr, *s + a, u16);
+            }
+            R_X86_64_8 => {
+                apply_reloc!(addr, *s + a, u8);
+            }
+            R_X86_64_RELATIVE => {
+                apply_reloc!(addr, b + a, u64);
+            }
+            R_X86_64_IRELATIVE => {
+                let code: extern "C" fn() -> i64 = unsafe { core::mem::transmute(b + a) };
+                apply_reloc!(addr, code(), i64);
+            }
+            _ => panic!("unknown rela type 0x{:x}", r#type),
+        };
+    }
+
+    Ok(())
 }
