@@ -41,7 +41,7 @@ impl Module for SysvRelocLib {
         let obj = &manifold.objects[section.obj];
 
         if !obj.is_lib {
-            ()
+            return Ok(())
         }
 
         process_one_reloc(obj, section, manifold)
@@ -66,7 +66,7 @@ impl Module for SysvReloc {
         let obj = &manifold.objects[section.obj];
 
         if obj.is_lib {
-            ()
+            return Ok(());
         }
 
         process_one_reloc(obj, section, manifold)
