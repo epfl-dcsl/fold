@@ -99,7 +99,7 @@ impl Module for SysvCollector {
             .collect::<Vec<_>>();
         trace!("[{}] New deps: {:?}", obj.display_path(), new_deps);
 
-        // Loads all the newly found dependencies
+        // Loads all the newly found dependenciesadd_elf
         for filename in new_deps {
             let path_lib = manifold
                 .search_paths
@@ -215,6 +215,8 @@ impl Module for SysvRemappingCollector {
 
             let file = file::map_file(file_fd);
             let obj = manifold.add_elf_file(file, filename.clone());
+
+            manifold.objects.get_mut(obj).unwrap().is_lib = true;
 
             deps.push(SysvCollectorEntry {
                 name: filename,
