@@ -29,6 +29,7 @@ pub struct Object {
 
     pub(crate) sections: Vec<Handle<Section>>,
     pub(crate) segments: Vec<Handle<Segment>>,
+    pub(crate) dependencies: Vec<Handle<Object>>,
 
     /// OS ABI
     os_abi: u8,
@@ -50,8 +51,6 @@ pub struct Object {
     e_shstrndx: u16,
 
     pub shared: ShareMap,
-
-    pub is_lib: bool,
 }
 
 impl Object {
@@ -62,6 +61,8 @@ impl Object {
             sections: Vec::new(),
             // Completed by the Manifold
             segments: Vec::new(),
+            // To be completed by the loader implementation
+            dependencies: Vec::new(),
             path,
             os_abi: hdr.e_ident[0],
             elf_type: hdr.e_type,
@@ -74,7 +75,6 @@ impl Object {
             e_shstrndx: hdr.e_shstrndx,
             mapping: file,
             shared: ShareMap::new(),
-            is_lib: false
         };
 
         if let Err(err) = obj.validate() {

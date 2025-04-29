@@ -1,9 +1,11 @@
 use alloc::boxed::Box;
 use alloc::ffi::CString;
+use alloc::vec::Vec;
 use core::cell::LazyCell;
 use core::str::FromStr;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE, *};
+use goblin::elf::section_header::SHT_RELA;
 use goblin::elf::sym::STB_WEAK;
 use goblin::elf64::reloc::{self, Rela};
 
@@ -25,57 +27,60 @@ macro_rules! apply_reloc {
 
 // ———————————————————————————————— Library relocation ————————————————————————————————— //
 
-pub struct SysvRelocLib;
+#[derive(Default)]
+pub struct SysvReloc {
+    relocated: Vec<Handle<Object>>,
+}
 
-impl Module for SysvRelocLib {
+impl SysvReloc {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+fn add_deps(obj: &Object, manifold: &Manifold) -> Vec<Handle<Object>> {
+    let mut queue = Vec::new();
+    for dep in obj.dependencies.iter() {
+        queue.push(*dep);
+        queue.extend(add_deps(&manifold[*dep], manifold));
+    }
+    queue
+}
+
+impl Module for SysvReloc {
     fn name(&self) -> &'static str {
         "sysv-reloc-lib"
     }
 
-    fn process_section(
+    fn process_object(
         &mut self,
-        section_handle: Handle<crate::Section>,
+        obj: Handle<Object>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
-        let section = &manifold.sections[section_handle];
-        let obj = &manifold.objects[section.obj];
+        let mut tree: Vec<Handle<Object>> = Vec::new();
 
-        if !obj.is_lib {
-            return Ok(())
+        tree.push(obj);
+        tree.extend(add_deps(&manifold[obj], manifold));
+
+        for dep in tree.into_iter().rev() {
+            if !self.relocated.contains(&dep) {
+                self.relocated.push(dep);
+                let obj = manifold.objects.get(dep).unwrap();
+                for section in obj.sections.iter() {
+                    let section = &manifold[*section];
+                    if section.tag == SHT_RELA {
+                        process_reloc(&obj, section, manifold)?;
+                    }
+                }
+            }
         }
-
-        process_one_reloc(obj, section, manifold)
-    }
-}
-
-// ———————————————————————————————— Executable relocation ————————————————————————————————— //
-
-pub struct SysvReloc;
-
-impl Module for SysvReloc {
-    fn name(&self) -> &'static str {
-        "sysv-reloc"
-    }
-
-    fn process_section(
-        &mut self,
-        section_handle: Handle<crate::Section>,
-        manifold: &mut Manifold,
-    ) -> Result<(), Box<dyn core::fmt::Debug>> {
-        let section = &manifold.sections[section_handle];
-        let obj = &manifold.objects[section.obj];
-
-        if obj.is_lib {
-            return Ok(());
-        }
-
-        process_one_reloc(obj, section, manifold)
+        Ok(())
     }
 }
 
 // ———————————————————————————————— Relocation ————————————————————————————————— //
 
-fn process_one_reloc(
+fn process_reloc(
     obj: &Object,
     section: &Section,
     manifold: &Manifold,

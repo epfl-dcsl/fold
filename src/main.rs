@@ -4,13 +4,13 @@
 extern crate alloc;
 extern crate fold;
 
-use fold::elf::cst::{PT_LOAD, SHT_FINI_ARRAY, SHT_INIT_ARRAY, SHT_RELA};
+use fold::elf::cst::{ET_EXEC, PT_LOAD, SHT_FINI_ARRAY, SHT_INIT_ARRAY};
 use fold::filters::{section, segment, ItemFilter, ObjectFilter};
 use fold::sysv::collector::SysvRemappingCollector;
 use fold::sysv::init_array::SysvInitArray;
 use fold::sysv::loader::SysvLoader;
 use fold::sysv::protect::SysvProtect;
-use fold::sysv::relocation::{SysvReloc, SysvRelocLib};
+use fold::sysv::relocation::SysvReloc;
 use fold::sysv::start::SysvStart;
 use fold::sysv::tls::SysvTls;
 use fold::{exit, init_logging, Env, Exit};
@@ -46,10 +46,15 @@ fn entry(env: Env) -> ! {
         .register(SysvLoader, segment(PT_LOAD))
         .phase("tls")
         .register(SysvTls, ItemFilter::ManifoldFilter)
-        .phase("relocation lib")
-        .register(SysvRelocLib, section(SHT_RELA))
-        .phase("relocation exe")
-        .register(SysvReloc, section(SHT_RELA))
+        .phase("relocation")
+        .register(
+            SysvReloc::new(),
+            ObjectFilter {
+                mask: fold::filters::ObjectMask::Any, // TODO: match only elf
+                os_abi: 0,
+                elf_type: 0,
+            },
+        )
         .phase("protect")
         .register(SysvProtect, segment(PT_LOAD))
         .phase("init array")
