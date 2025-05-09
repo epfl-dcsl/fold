@@ -8,12 +8,12 @@ use alloc::vec::Vec;
 use core::ffi::CStr;
 use core::fmt::Debug;
 use core::str::FromStr;
-use rustix::fs;
 
 use goblin::elf::dynamic::DT_NEEDED;
 use goblin::elf::section_header::SHT_DYNAMIC;
 use goblin::elf64::dynamic::Dyn;
 use log::trace;
+use rustix::fs;
 
 use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;

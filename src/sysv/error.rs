@@ -1,4 +1,5 @@
-use alloc::{boxed::Box, ffi::CString};
+use alloc::boxed::Box;
+use alloc::ffi::CString;
 
 use crate::error::FoldError;
 

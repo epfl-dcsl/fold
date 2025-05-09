@@ -108,7 +108,7 @@ impl fmt::Debug for Env {
             }
 
             if let Ok(arg) = arg.to_str() {
-                write!(f, "{}", arg)?;
+                write!(f, "{arg}")?;
             } else {
                 write!(f, "<not utf-8>")?;
             }
@@ -120,7 +120,7 @@ impl fmt::Debug for Env {
             }
 
             if let Ok(env) = env.to_str() {
-                write!(f, "{}", env)?;
+                write!(f, "{env}")?;
             } else {
                 write!(f, "<not utf-8>")?;
             }
@@ -130,7 +130,7 @@ impl fmt::Debug for Env {
             if idx != 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{:x?}", aux)?;
+            write!(f, "{aux:x?}")?;
         }
         write!(f, "]}}")
     }

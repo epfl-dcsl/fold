@@ -31,7 +31,11 @@ impl Module for SysvInitArray {
         for addr in ElfItemIterator::<u64>::from_section(section) {
             let code: extern "C" fn() -> i64 = unsafe { core::mem::transmute(addr + base) };
 
-            log::info!("Call function at {:x} (loaded at 0x{:x})", addr, addr + base);
+            log::info!(
+                "Call function at {:x} (loaded at 0x{:x})",
+                addr,
+                addr + base
+            );
 
             code();
         }
