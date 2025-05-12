@@ -72,6 +72,6 @@ pub unsafe fn init(argv: usize) -> Env {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    log::error!("{}", info);
+    log::error!("{info}");
     exit(Exit::Error);
 }

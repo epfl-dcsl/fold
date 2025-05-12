@@ -69,7 +69,7 @@ impl Module for SysvReloc {
                 for section in obj.sections.iter() {
                     let section = &manifold[*section];
                     if section.tag == SHT_RELA {
-                        process_reloc(&obj, section, manifold)?;
+                        process_reloc(obj, section, manifold)?;
                     }
                 }
             }

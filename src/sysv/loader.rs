@@ -15,6 +15,12 @@ pub const SYSV_LOADER_BASE_ADDR: ShareMapKey<usize> = ShareMapKey::new("sys_load
 
 pub struct SysvLoader;
 
+impl Default for SysvLoader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SysvLoader {
     pub fn new() -> Self {
         Self {}

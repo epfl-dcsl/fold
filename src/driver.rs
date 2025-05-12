@@ -92,7 +92,7 @@ impl Fold {
 
         // Load target
         let target = self.config.target;
-        log::info!("Target: {:?}", target);
+        log::info!("Target: {target:?}");
         let file_fd = file::open_file_ro(target.to_bytes()).expect("Target is not a file");
         let file = file::map_file(file_fd);
         manifold.add_elf_file(file, target.to_owned());

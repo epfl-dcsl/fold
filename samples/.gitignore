@@ -10,4 +10,5 @@ hello-c
 hello-args
 hello-env
 hello-math
-
+seccomp-allowed
+seccomp-forbidden

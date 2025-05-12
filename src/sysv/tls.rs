@@ -84,7 +84,7 @@ fn build_tcb_head(addr: usize, storage_size: usize) -> Vec<u8> {
 }
 
 unsafe fn set_fs(addr: usize) {
-    log::trace!("Set fs register to 0x{:x}", addr);
+    log::trace!("Set fs register to 0x{addr:x}");
     let syscall_number: u64 = 158; // arch_prctl syscall
     let arch_set_fs: u64 = 0x1002; // set FS
 

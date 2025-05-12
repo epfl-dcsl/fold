@@ -4,6 +4,8 @@
 extern crate alloc;
 extern crate fold;
 
+mod seccomp;
+
 use fold::elf::cst::{PT_LOAD, SHT_FINI_ARRAY, SHT_INIT_ARRAY};
 use fold::filters::{section, segment, ItemFilter, ObjectFilter};
 use fold::sysv::collector::SysvRemappingCollector;
@@ -14,6 +16,7 @@ use fold::sysv::relocation::SysvReloc;
 use fold::sysv::start::SysvStart;
 use fold::sysv::tls::SysvTls;
 use fold::{exit, init_logging, Env, Exit};
+use seccomp::Seccomp;
 
 fold::entry!(entry);
 
@@ -61,6 +64,8 @@ fn entry(env: Env) -> ! {
         .register(SysvInitArray, section(SHT_INIT_ARRAY))
         .phase("fini array")
         .register(SysvInitArray, section(SHT_FINI_ARRAY))
+        .phase("syscall restriction")
+        .register(Seccomp, ItemFilter::ManifoldFilter)
         .phase("start")
         .register(SysvStart, ObjectFilter::any())
         .run();
