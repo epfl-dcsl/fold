@@ -29,6 +29,7 @@ pub struct Object {
 
     pub(crate) sections: Vec<Handle<Section>>,
     pub(crate) segments: Vec<Handle<Segment>>,
+    pub(crate) dependencies: Vec<Handle<Object>>,
 
     /// OS ABI
     os_abi: u8,
@@ -60,6 +61,8 @@ impl Object {
             sections: Vec::new(),
             // Completed by the Manifold
             segments: Vec::new(),
+            // To be completed by the loader implementation
+            dependencies: Vec::new(),
             path,
             os_abi: hdr.e_ident[0],
             elf_type: hdr.e_type,
@@ -173,11 +176,18 @@ impl Object {
             // If an non-weak entry is found, return it.
             if let Some((sym, _)) = entry {
                 if sym.st_shndx != SHN_UNDEF as u16 {
+
+                    // Section containing the symbol
+                    let container = manifold
+                        .sections
+                        .get(self.sections[sym.st_shndx as usize])
+                        .expect("Symbol not contained in a section");
+
                     if sym.st_info & STB_WEAK == 0 {
-                        return Ok((section.section, *sym));
+                        return Ok((container, *sym));
                     }
 
-                    weak_result = Ok((section.section, *sym))
+                    weak_result = Ok((container, *sym))
                 }
             }
         }

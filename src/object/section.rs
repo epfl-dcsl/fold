@@ -184,7 +184,7 @@ impl<'a> SymbolTableSection<'a> {
     }
 
     /// Return the symbol represented by the `DYNSYM` entry at the given index.
-    pub fn get_symbol(&self, index: usize, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
+    pub fn get_symbol_name(&self, index: usize, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
         let entry = self.get_entry(index)?;
 
         self.section

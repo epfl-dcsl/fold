@@ -76,14 +76,14 @@ impl Module for SysvCollector {
 
     fn process_object(
         &mut self,
-        obj: Handle<Object>,
+        hobj: Handle<Object>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
         // No recursion is needed for collecting dependencies; object needed by the executable are loaded into the manifold,
         // then the collector is invoked on them, etc.
 
         // Fetches the already loaded depencencies
-        let obj = &manifold[obj];
+        let obj = &manifold[hobj];
         let mut deps: Vec<SysvCollectorEntry> = manifold
             .shared
             .get(SYSV_COLLECTOR_RESULT_KEY)
@@ -99,7 +99,7 @@ impl Module for SysvCollector {
             .collect::<Vec<_>>();
         trace!("[{}] New deps: {:?}", obj.display_path(), new_deps);
 
-        // Loads all the newly found dependencies
+        // Loads all the newly found dependenciesadd_elf
         for filename in new_deps {
             let path_lib = manifold
                 .search_paths
@@ -112,6 +112,8 @@ impl Module for SysvCollector {
 
             let file = file::map_file(file_fd);
             let obj = manifold.add_elf_file(file, filename.clone());
+
+            manifold[hobj].dependencies.push(obj);
 
             deps.push(SysvCollectorEntry {
                 name: filename,
@@ -164,14 +166,14 @@ impl Module for SysvRemappingCollector {
 
     fn process_object(
         &mut self,
-        obj: Handle<Object>,
+        hobj: Handle<Object>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
         // No recursion is needed for collecting dependencies; object needed by the executable are loaded into the manifold,
         // then the collector is invoked on them, etc.
 
         // Fetches the already loaded depencencies
-        let obj = &manifold[obj];
+        let obj = &manifold[hobj];
         let mut deps: Vec<SysvCollectorEntry> = manifold
             .shared
             .get(SYSV_COLLECTOR_RESULT_KEY)
@@ -213,6 +215,8 @@ impl Module for SysvRemappingCollector {
 
             let file = file::map_file(file_fd);
             let obj = manifold.add_elf_file(file, filename.clone());
+
+            manifold[hobj].dependencies.push(obj);
 
             deps.push(SysvCollectorEntry {
                 name: filename,

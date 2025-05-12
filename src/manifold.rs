@@ -4,7 +4,7 @@ use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::ffi::CStr;
-use core::ops::Index;
+use core::ops::{Index, IndexMut};
 
 use goblin::elf::sym::{STB_GLOBAL, STB_LOCAL, STB_WEAK};
 use goblin::elf64::sym::Sym;
@@ -137,5 +137,23 @@ impl Index<Handle<Section>> for Manifold {
 
     fn index(&self, handle: Handle<Section>) -> &Self::Output {
         &self.sections[handle]
+    }
+}
+
+impl IndexMut<Handle<Object>> for Manifold {
+    fn index_mut(&mut self, handle: Handle<Object>) -> &mut Self::Output {
+        &mut self.objects[handle]
+    }
+}
+
+impl IndexMut<Handle<Segment>> for Manifold {
+    fn index_mut(&mut self, handle: Handle<Segment>) -> &mut Self::Output {
+        &mut self.segments[handle]
+    }
+}
+
+impl IndexMut<Handle<Section>> for Manifold {
+    fn index_mut(&mut self, handle: Handle<Section>) -> &mut Self::Output {
+        &mut self.sections[handle]
     }
 }
