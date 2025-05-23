@@ -24,7 +24,7 @@ impl Module for Seccomp {
         _manifold: &mut fold::manifold::Manifold,
     ) -> Result<(), alloc::boxed::Box<dyn core::fmt::Debug>> {
         unsafe {
-            // SECCOMP_SET_MODE_STRICT mode, only allow
+            // SECCOMP_SET_MODE_STRICT mode, only allow read, write and exit
             syscall!(Sysno::seccomp, 0, 0, 0).map(|_| ()).map_err(|_| Box::from(SeccompError))
         }
     }

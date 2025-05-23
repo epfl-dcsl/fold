@@ -3,12 +3,22 @@ use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
+use goblin::elf::program_header::PT_LOAD;
+use goblin::elf::section_header::{SHT_FINI_ARRAY, SHT_INIT_ARRAY};
+
 use crate::arena::{Arena, Handle};
 use crate::cli::Config;
 use crate::env::Env;
-use crate::filters::ItemFilter;
+use crate::filters::{self, section, segment, ItemFilter, ObjectFilter};
 use crate::manifold::Manifold;
 use crate::module::Module;
+use crate::sysv::collector::SysvRemappingCollector;
+use crate::sysv::init_array::SysvInitArray;
+use crate::sysv::loader::SysvLoader;
+use crate::sysv::protect::SysvProtect;
+use crate::sysv::relocation::SysvReloc;
+use crate::sysv::start::SysvStart;
+use crate::sysv::tls::SysvTls;
 use crate::{cli, file, Object};
 
 type ModuleRef = Box<dyn Module>;
@@ -50,6 +60,52 @@ pub fn new(env: Env) -> Fold {
     }
 }
 
+// Return default sysv chain
+pub fn default_chain(env: Env) -> Fold {
+    new(env)
+        .search_path("/lib")
+        .search_path("/lib64")
+        .search_path("/usr/lib/")
+        .phase("collect")
+        .register(
+            SysvRemappingCollector::new()
+                .replace("libc.so", "libc.so")
+                .drop_multiple(&[
+                    "ld-linux-x86-64.so",
+                    "libcrypt.so",
+                    "libdl.so",
+                    "libm.so",
+                    "libpthread.so",
+                    "libresolv.so",
+                    "librt.so",
+                    "libutil.so",
+                    "libxnet.so",
+                ]),
+            ObjectFilter::any(),
+        )
+        .phase("load")
+        .register(SysvLoader, segment(PT_LOAD))
+        .phase("tls")
+        .register(SysvTls, ItemFilter::ManifoldFilter)
+        .phase("relocation")
+        .register(
+            SysvReloc::new(),
+            ObjectFilter {
+                mask: filters::ObjectMask::Any, // TODO: match only elf
+                os_abi: 0,
+                elf_type: 0,
+            },
+        )
+        .phase("protect")
+        .register(SysvProtect, segment(PT_LOAD))
+        .phase("init array")
+        .register(SysvInitArray, section(SHT_INIT_ARRAY))
+        .phase("fini array")
+        .register(SysvInitArray, section(SHT_FINI_ARRAY))
+        .phase("start")
+        .register(SysvStart, ObjectFilter::any())
+}
+
 // ————————————————————————————————— Phases ————————————————————————————————— //
 
 impl Fold {
@@ -60,6 +116,48 @@ impl Fold {
             modules: Arena::new(),
             filters: Vec::new(),
         });
+        self
+    }
+
+    // Insert a phase after another
+    pub fn insert_phase_after(mut self, name: impl AsRef<str>, other: impl AsRef<str>) -> Self {
+        if let Some(index) = self.phases.iter().position(|p| p.name == other.as_ref()) {
+            self.phases.insert(
+                index,
+                Phase {
+                    name: name.as_ref().to_string(),
+                    modules: Arena::new(),
+                    filters: Vec::new(),
+                },
+            );
+        } else {
+            log::warn!("Adding phase '{}' doesn't exists, ignoring", other.as_ref());
+        }
+
+        self
+    }
+
+    /// Register a module for the current phase.
+    pub fn register_in_phase<I>(
+        mut self,
+        phase: impl AsRef<str>,
+        module: impl Module + 'static,
+        item: I,
+    ) -> Self
+    where
+        I: Into<ItemFilter>,
+    {
+        let Some(phase) = self.phases.iter_mut().find(|p| p.name == phase.as_ref()) else {
+            log::warn!(
+                "Adding module '{}' but no phase declared yet, ignoring",
+                module.name()
+            );
+            return self;
+        };
+
+        let id = item.into();
+        let mod_idx = phase.modules.push(Box::new(module));
+        phase.filters.push((id, mod_idx));
         self
     }
 
