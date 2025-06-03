@@ -2,7 +2,7 @@
 
 STATUS_FILE=$(mktemp)
 PATCH_FILE=../musl.patch
-NEW_FILES=(src/glib/glib.c)
+NEW_FILES=("src/glib/glib.c")
 
 error() {
     echo "$@"
