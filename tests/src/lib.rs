@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use core::assert_eq;
-    use std::process::{Command, ExitStatus};
+    use std::process::{Command, Stdio};
 
     #[test]
     fn hello() {
@@ -97,6 +97,7 @@ mod tests {
     #[test]
     fn seccomp_forbidden() {
         let status = Command::new("../samples/seccomp-forbidden")
+            .stdout(Stdio::null())
             .status()
             .expect("Failed to execute process");
         assert_eq!(status.success(), false);
