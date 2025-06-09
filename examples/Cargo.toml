@@ -1,0 +1,3 @@
+[workspace]
+members = ["seccomp-linker"]
+resolver = "2"

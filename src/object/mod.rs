@@ -79,7 +79,7 @@ impl Object {
 
         if let Err(err) = obj.validate() {
             let path = obj.path.to_str().unwrap_or("<path is not utf-8>");
-            log::error!("{} for file {}", err, path);
+            log::error!("{err} for file {path}");
             exit_error();
         }
 

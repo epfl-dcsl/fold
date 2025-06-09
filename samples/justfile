@@ -1,5 +1,8 @@
 root_dir  := justfile_directory()
 linker    := root_dir + "/../target/x86_64-unknown-linux-none/debug/fold"
+seccomp-linker := root_dir + "/../examples/target/x86_64-unknown-linux-none/debug/seccomp-linker"
+
+
 
 programs:
 	# hello
@@ -43,6 +46,16 @@ programs:
 	gcc -o hello-math hello-math.c -pie -fPIE -lm
 	patchelf --set-interpreter {{linker}} hello-math
 	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-math
+
+	# seccomp-allowed.c
+	gcc -o seccomp-allowed seccomp-allowed.c -pie -fPIE -lm
+	patchelf --set-interpreter {{seccomp-linker}} seccomp-allowed
+	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so seccomp-allowed
+
+	# seccomp-forbidden.c
+	gcc -o seccomp-forbidden seccomp-forbidden.c -pie -fPIE -lm
+	patchelf --set-interpreter {{seccomp-linker}} seccomp-forbidden
+	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so seccomp-forbidden
 
 clean:
 	rm *.o -f

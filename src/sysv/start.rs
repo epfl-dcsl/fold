@@ -30,7 +30,7 @@ impl Module for SysvStart {
         let stack = build_stack(&manifold.env);
 
         unsafe {
-            log::info!("Jumping at 0x{:x}...", entry);
+            log::info!("Jumping at 0x{entry:x}...");
             jmp(entry as *const u8, stack.as_ptr(), stack.len() as u64);
         }
     }

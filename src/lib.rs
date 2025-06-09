@@ -24,7 +24,7 @@ pub mod share_map;
 pub mod sysv;
 
 pub use arena::Handle;
-pub use driver::new;
+pub use driver::{new, default_chain};
 pub use env::Env;
 pub use exit::{exit, exit_error, Exit};
 pub use logging::init as init_logging;
@@ -72,6 +72,6 @@ pub unsafe fn init(argv: usize) -> Env {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    log::error!("{}", info);
+    log::error!("{info}");
     exit(Exit::Error);
 }

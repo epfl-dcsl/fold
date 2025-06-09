@@ -1,0 +1,4 @@
+target := "../x86_64-unknown-linux-none.json"
+
+linkers:
+    cargo +nightly build --target {{target}} -Z build-std=core,alloc
