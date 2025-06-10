@@ -10,6 +10,7 @@ run:
 build:
 	cargo +nightly build -p fold --target {{target}} -Z build-std=core,alloc
 	@just --justfile samples/justfile
+	@just --justfile examples/justfile
 
 
 	@echo 'ARCH=x86_64' > musl/config.mak

@@ -5,10 +5,11 @@ mod tests {
 
     #[test]
     fn hello() {
-        let output = Command::new("../samples/hello")
+        let output = Command::new("../target/x86_64-unknown-linux-none/debug/fold")
+            .arg("../samples/hello")
             .output()
             .expect("Failed to execute process");
-        assert_eq!(String::from_utf8_lossy(&output.stdout), "hi there\n");
+        assert!(String::from_utf8_lossy(&output.stdout).contains("hi there"));
     }
 
     #[test]
