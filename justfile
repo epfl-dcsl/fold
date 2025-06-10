@@ -18,7 +18,7 @@ build:
 	@make -C musl
 
 test:
-	just build
+	@just build
 	cargo test -p tests
 
 sqlite-build:
@@ -28,19 +28,24 @@ release:
 	cargo +nightly build -p fold --release --target {{target}} -Z build-std=core,alloc
 
 check:
-	cargo +nightly check --target {{target}} -Z build-std=core,alloc
+	cargo +nightly check -p fold --target {{target}} -Z build-std=core,alloc
+	cargo check -p tests
 	
 clippy:
-	cargo +nightly clippy --target {{target}} -Z build-std=core,alloc
+	cargo +nightly clippy -p fold --target {{target}} -Z build-std=core,alloc
+	cargo clippy -p tests
 
 clippy-fix:
-	cargo +nightly clippy --target {{target}} -Z build-std=core,alloc --fix --allow-dirty
+	cargo +nightly clippy -p fold --target {{target}} -Z build-std=core,alloc --fix --allow-dirty
+	cargo clippy -p tests --fix --allow-dirty
 
 fmt:
-	cargo +nightly fmt
+	cargo +nightly fmt -p fold
+	cargo fmt -p tests
 
 doc:
-	cargo +nightly doc --target {{target}} -Z build-std=core,alloc --open
+	cargo +nightly doc -p fold --target {{target}} -Z build-std=core,alloc --open
+	cargo doc -p tests --open
 
 clean:
 	cargo clean

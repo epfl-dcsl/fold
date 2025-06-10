@@ -176,7 +176,6 @@ impl Object {
             // If an non-weak entry is found, return it.
             if let Some((sym, _)) = entry {
                 if sym.st_shndx != SHN_UNDEF as u16 {
-
                     // Section containing the symbol
                     let container = manifold
                         .sections
