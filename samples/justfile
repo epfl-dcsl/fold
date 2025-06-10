@@ -1,8 +1,7 @@
 root_dir  := justfile_directory()
 linker    := root_dir + "/../target/x86_64-unknown-linux-none/debug/fold"
 seccomp-linker := root_dir + "/../examples/target/x86_64-unknown-linux-none/debug/seccomp-linker"
-
-
+emulator-linker := root_dir + "/../examples/target/x86_64-unknown-linux-none/debug/emulator-linker"
 
 programs:
 	# hello
@@ -56,6 +55,9 @@ programs:
 	gcc -o seccomp-forbidden seccomp-forbidden.c -pie -fPIE -lm
 	patchelf --set-interpreter {{seccomp-linker}} seccomp-forbidden
 	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so seccomp-forbidden
+
+	# hello-riscv
+	riscv64-unknown-linux-gnu-gcc -o hello-riscv hello-riscv.s -nostdlib -static
 
 clean:
 	rm *.o -f

@@ -35,6 +35,8 @@ pub struct Object {
     os_abi: u8,
     /// Elf type
     elf_type: u16,
+    /// ISA
+    pub e_machine: u16,
     /// Offset of the section header table.
     e_shoff: usize,
     /// Size of the entries in the section header table.
@@ -66,6 +68,7 @@ impl Object {
             path,
             os_abi: hdr.e_ident[0],
             elf_type: hdr.e_type,
+            e_machine: hdr.e_machine,
             e_shoff: hdr.e_shoff as usize,
             e_shentsize: hdr.e_shentsize,
             e_shnum: hdr.e_shnum,
