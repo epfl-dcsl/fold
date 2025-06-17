@@ -24,7 +24,7 @@ pub mod share_map;
 pub mod sysv;
 
 pub use arena::Handle;
-pub use driver::{new, default_chain};
+pub use driver::{default_chain, new};
 pub use env::Env;
 pub use exit::{exit, exit_error, Exit};
 pub use logging::init as init_logging;
