@@ -11,7 +11,7 @@ fold::entry!(entry);
 fn entry(env: Env) -> ! {
     init_logging(log::LevelFilter::Trace);
 
-    fold::default_chain(env).run();
+    fold::default_chain("fold", env).run();
 
     exit(Exit::Success);
 }

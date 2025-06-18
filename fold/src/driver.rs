@@ -37,11 +37,11 @@ struct Phase {
     filters: Vec<(ItemFilter, Handle<ModuleRef>)>,
 }
 
-pub fn new(env: Env) -> Fold {
+pub fn new(env: Env, loader_name: &str) -> Fold {
     log::info!("Hello, world!");
     log::info!("Args: {:?}", &env.args);
 
-    let config = cli::parse(env);
+    let config = cli::parse(env, loader_name);
 
     let cwd = if let Some(last_delim) = config.target.to_string_lossy().rfind('/') {
         &config.target.to_string_lossy()[..last_delim]
@@ -61,8 +61,8 @@ pub fn new(env: Env) -> Fold {
 }
 
 // Return default sysv chain
-pub fn default_chain(env: Env) -> Fold {
-    new(env)
+pub fn default_chain(loader_name: &str, env: Env) -> Fold {
+    new(env, loader_name)
         .search_path("/lib")
         .search_path("/lib64")
         .search_path("/usr/lib/")
