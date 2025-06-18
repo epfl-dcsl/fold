@@ -1,0 +1,11 @@
+[package]
+name = "trampoline-linker"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+fold = { path = "../../fold" }
+macros = { path = "./macros" }
+log = "0.4.19"
+goblin = { version = "0.7.1", default-features = false, features = ["elf64"] }
+rustix = { version = "0.38.3", default-features = false, features = ["mm"] }

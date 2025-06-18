@@ -12,3 +12,4 @@ hello-env
 hello-math
 seccomp-allowed
 seccomp-forbidden
+trampoline-print
