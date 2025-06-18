@@ -10,7 +10,8 @@ const HEAP_SIZE_MB: usize = 128;
 
 /// Initializes the global allocator.
 ///
-/// SAFETY: Most be called only once.
+/// # SAFETY
+/// Must be called only once.
 pub unsafe fn init_allocator() {
     let heap_size = HEAP_SIZE_MB * 1024 * 1024;
     let prot = ProtFlags::READ | ProtFlags::WRITE;

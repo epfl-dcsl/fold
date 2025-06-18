@@ -24,7 +24,7 @@ macro_rules! derive_sectiont {
 macro_rules! as_section {
     ($fn:ident,$struc:tt,$tag:expr,$name:literal) => {
         #[doc = concat!("Creates a wrapper around this section to use is as a ", $name, " section.")]
-        pub fn $fn(&self) -> Result<$struc, FoldError> {
+        pub fn $fn(&'_ self) -> Result<$struc<'_>, FoldError> {
             if self.tag == $tag {
                 Ok($struc { section: self })
             } else {

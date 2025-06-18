@@ -24,31 +24,31 @@ pub mod section;
 
 /// An elf object.
 pub struct Object {
-    path: CString,
-    mapping: Arc<Mapping>,
+    pub path: CString,
+    pub mapping: Arc<Mapping>,
 
-    pub(crate) sections: Vec<Handle<Section>>,
-    pub(crate) segments: Vec<Handle<Segment>>,
-    pub(crate) dependencies: Vec<Handle<Object>>,
+    pub sections: Vec<Handle<Section>>,
+    pub segments: Vec<Handle<Segment>>,
+    pub dependencies: Vec<Handle<Object>>,
 
     /// OS ABI
-    os_abi: u8,
+    pub os_abi: u8,
     /// Elf type
-    elf_type: u16,
+    pub elf_type: u16,
     /// Offset of the section header table.
-    e_shoff: usize,
+    pub e_shoff: usize,
     /// Size of the entries in the section header table.
-    e_shentsize: u16,
+    pub e_shentsize: u16,
     /// Number of entries in the section header table.
-    pub(crate) e_shnum: u16,
+    pub e_shnum: u16,
     /// Offset of the program header table.
-    e_phoff: usize,
+    pub e_phoff: usize,
     /// Size of entries in the program header table.
-    e_phentsize: u16,
+    pub e_phentsize: u16,
     /// Number of entries in the program header table.
-    pub(crate) e_phnum: u16,
+    pub e_phnum: u16,
     /// Index of the section header string table
-    e_shstrndx: u16,
+    pub e_shstrndx: u16,
 
     pub shared: ShareMap,
 }
@@ -130,11 +130,11 @@ impl Object {
         self.mapping.bytes()
     }
 
-    pub fn section_headers(&self) -> ElfItemIterator<SectionHeader> {
+    pub fn section_headers(&'_ self) -> ElfItemIterator<'_, SectionHeader> {
         ElfItemIterator::new(self.raw(), self.e_shoff, self.e_shnum, self.e_shentsize)
     }
 
-    pub fn program_headers(&self) -> ElfItemIterator<ProgramHeader> {
+    pub fn program_headers(&'_ self) -> ElfItemIterator<'_, ProgramHeader> {
         ElfItemIterator::new(self.raw(), self.e_phoff, self.e_phnum, self.e_phentsize)
     }
 
