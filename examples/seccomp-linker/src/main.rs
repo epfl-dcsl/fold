@@ -15,7 +15,7 @@ fold::entry!(entry);
 fn entry(env: Env) -> ! {
     init_logging(log::LevelFilter::Trace);
 
-    fold::default_chain(env)
+    fold::default_chain("seccomp", env)
         .insert_phase_after("syscall restriction", "fini array")
         .register_in_phase("syscall restriction", Seccomp, ItemFilter::ManifoldFilter)
         .run();

@@ -11,9 +11,9 @@ pub mod installer;
 use core::ffi::CStr;
 
 use fold::{
-    Env, Exit, exit,
+    exit,
     filters::{self, ObjectFilter},
-    init_logging, println,
+    init_logging, println, Env, Exit,
 };
 use macros::hook;
 
@@ -32,7 +32,7 @@ fold::entry!(entry);
 fn entry(env: Env) -> ! {
     init_logging(log::LevelFilter::Trace);
 
-    fold::default_chain(env)
+    fold::default_chain("trampoline", env)
         .insert_phase_after("hooks", "relocation")
         .register_in_phase(
             "hooks",
