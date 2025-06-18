@@ -63,8 +63,9 @@ pub struct Section {
     /// Required alignment.
     pub alig: usize,
     /// Link to an associated section.
-    /// TODO: store a handle instead
-    pub link: u32,
+    pub link_section: Option<Handle<Section>>,
+    /// Index of the linked section.
+    pub link_idk: u32,
     /// Extra information about the section.
     pub info: u32,
     /// Size of the elements contained in the section, if applicable.
@@ -96,7 +97,8 @@ impl Section {
             offset: header.sh_offset as usize,
             size: header.sh_size as usize,
             alig: header.sh_addralign as usize,
-            link: header.sh_link,
+            link_section: None,
+            link_idk: header.sh_link,
             info: header.sh_info,
             entity_size: header.sh_entsize as usize,
         }
@@ -134,11 +136,9 @@ pub trait SectionT {
 
     /// Return the section which index is stored in `link`, fetching it from the Manifold.
     fn get_linked_section<'a>(&'_ self, manifold: &'a Manifold) -> Result<&'a Section, FoldError> {
-        let obj = manifold.objects.get(self.section().obj).unwrap();
-
         manifold
             .sections
-            .get(obj.sections[self.section().link as usize])
+            .get(self.section().link_section.unwrap())
             .ok_or(FoldError::MissingLinkedSection)
     }
 

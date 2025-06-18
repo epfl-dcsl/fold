@@ -59,10 +59,11 @@ impl Manifold {
             sections.push(idx);
         }
 
-        // Rename sections
-        let mut names = vec![];
+        // Rename sections and link them
+        let mut optional = vec![];
         let shstr = &self.sections[sections[obj.e_shstrndx as usize]];
-        for (hdx, section) in self.sections.enumerate() {
+        for hdx in sections.iter() {
+            let section = &self[*hdx];
             let name = shstr
                 .as_string_table()
                 .map(|e| {
@@ -72,11 +73,14 @@ impl Manifold {
                 })
                 .unwrap_or_default();
 
-            names.push((hdx, name));
+            let link = sections.get(section.link_idk as usize).copied();
+
+            optional.push((*hdx, name, link));
         }
 
-        for (hdx, name) in names {
+        for (hdx, name, link) in optional {
             self[hdx].name = name;
+            self[hdx].link_section = link;
         }
 
         // Initialize segment and section indexes.
