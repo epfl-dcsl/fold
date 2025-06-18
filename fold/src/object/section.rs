@@ -214,7 +214,7 @@ impl<'a> SymbolTableSection<'a> {
     }
 
     /// Create an iterator over all the `DYNSYM` entries of the section.
-    pub fn entry_iter(&self) -> impl Iterator<Item = &goblin::elf::sym::sym64::Sym> {
+    pub fn entry_iter(&self) -> impl Iterator<Item = &'a goblin::elf::sym::sym64::Sym> + 'a {
         ElfItemIterator::<goblin::elf::sym::sym64::Sym>::from_section(self.section)
     }
 
@@ -222,13 +222,14 @@ impl<'a> SymbolTableSection<'a> {
     pub fn symbol_iter(
         &self,
         manifold: &'a Manifold,
-    ) -> impl Iterator<Item = Result<(&goblin::elf::sym::sym64::Sym, &CStr), FoldError>> {
+    ) -> impl Iterator<Item = Result<(goblin::elf::sym::sym64::Sym, &'a CStr), FoldError>> + 'a
+    {
         self.entry_iter().map(|sym_entry| {
             self.section
                 .get_linked_section(manifold)?
                 .as_string_table()?
                 .get_symbol(sym_entry.st_name as usize)
-                .map(|symbol| (sym_entry, symbol))
+                .map(|symbol| (*sym_entry, symbol))
         })
     }
 }

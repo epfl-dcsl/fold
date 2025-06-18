@@ -154,7 +154,7 @@ impl Object {
             .filter_map(|s| symbol_table_mapper(s).ok())
         {
             // List all entries with matching symbol name
-            let matching_entries: Vec<(&Sym, &CStr)> = section
+            let matching_entries: Vec<(Sym, &CStr)> = section
                 .symbol_iter(manifold)
                 .filter_map(Result::ok)
                 .filter(|(_, name)| *name == symbol)
@@ -162,7 +162,7 @@ impl Object {
 
             // Find an entry with LOCAL or GLOBAL visibility. If none match, use the first entry found (thus including
             // WEAK entries as well). This implements priority between LOCAL/GLOBAL and WEAK.
-            let entry: Option<(&Sym, &CStr)> = matching_entries
+            let entry: Option<(Sym, &CStr)> = matching_entries
                 .iter()
                 .find(|(sym, _)| {
                     let binding = sym_bindings(sym);
@@ -183,10 +183,10 @@ impl Object {
                         .expect("Symbol not contained in a section");
 
                     if sym.st_info & STB_WEAK == 0 {
-                        return Ok((container, *sym));
+                        return Ok((container, sym));
                     }
 
-                    weak_result = Ok((container, *sym))
+                    weak_result = Ok((container, sym))
                 }
             }
         }
@@ -195,14 +195,14 @@ impl Object {
     }
 
     pub fn symbols<'a>(
-        &self,
+        &'a self,
         manifold: &'a Manifold,
-    ) -> impl Iterator<Item = Result<(&goblin::elf64::sym::Sym, &CStr), FoldError>> {
+    ) -> impl Iterator<Item = Result<(goblin::elf64::sym::Sym, &'a CStr), FoldError>> + 'a {
         self.sections
             .iter()
-            .map(|h| &manifold.sections[*h])
-            .filter_map(|s| s.as_symbol_table().ok())
-            .flat_map(|s| s.symbol_iter(manifold))
+            .map(|h: &'a Handle<Section>| &manifold.sections[*h])
+            .filter_map(|s: &'a Section| s.as_symbol_table().ok())
+            .flat_map(move |s: SymbolTableSection<'a>| s.symbol_iter(manifold))
     }
 
     /// Find the given symbol in one of the [`SHT_STRTAB`](goblin::elf::section_header::SHT_STRTAB) section of this object.
