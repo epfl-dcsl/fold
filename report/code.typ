@@ -40,7 +40,7 @@
 }
 
 #let code(file, ident: none, type: none, from: none, to: none, lang: "rust", caption: none) = {
-  let code = read(file).split("\n")
+  let code = read("../" + file).split("\n")
 
   assert(
     ident != none or (from != none and to != none),

@@ -43,7 +43,11 @@ fmt:
 	cargo +nightly fmt -p fold
 	cargo fmt -p tests
 
+report:
+	typst compile report/report.typ -f pdf --root ..
+
 doc:
+	@just report
 	cargo +nightly doc -p fold --target {{target}} -Z build-std=core,alloc --open
 	cargo doc -p tests --open
 
