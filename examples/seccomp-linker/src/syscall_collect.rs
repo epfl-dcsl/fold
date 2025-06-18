@@ -1,7 +1,9 @@
 use alloc::boxed::Box;
-use alloc::vec::Vec;
 
+use fold::manifold::Manifold;
 use fold::module::Module;
+use fold::object::Object;
+use fold::Handle;
 use syscalls::{syscall, Sysno};
 
 #[derive(Debug)]
@@ -20,13 +22,16 @@ impl Module for SysCollect {
         "syscall collect"
     }
 
-    fn process_manifold(
+    fn process_object(
         &mut self,
-        manifold: &mut fold::manifold::Manifold,
-    ) -> Result<(), alloc::boxed::Box<dyn core::fmt::Debug>> {
+        obj: Handle<Object>,
+        manifold: &mut Manifold,
+    ) -> Result<(), Box<dyn core::fmt::Debug>> {
+        let obj = &manifold[obj];
+
         // Combine filters for write and exit
-        for obj in manifold.objects {
-            obj.symbols().for_each(|s| println("{:}", s))
-        }
+        obj.symbols(&manifold)
+            .for_each(|s| log::info!("{:?}", s.unwrap().1));
+        Ok(())
     }
 }

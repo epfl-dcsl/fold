@@ -19,7 +19,7 @@ pub mod filters;
 mod logging;
 pub mod manifold;
 pub mod module;
-mod object;
+pub mod object;
 pub mod share_map;
 pub mod sysv;
 
