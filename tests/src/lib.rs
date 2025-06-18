@@ -103,4 +103,12 @@ mod tests {
             .expect("Failed to execute process");
         assert_eq!(status.success(), false);
     }
+
+    #[test]
+    fn seccomp_symbol_detection() {
+        let output = Command::new("../samples/hello-c")
+            .output()
+            .expect("Failed to execute process");
+        assert!(String::from_utf8_lossy(&output.stdout).contains("hi there"));
+    }
 }

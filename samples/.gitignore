@@ -12,4 +12,5 @@ hello-env
 hello-math
 seccomp-allowed
 seccomp-forbidden
+seccomp-sym-hello-c
 trampoline-print

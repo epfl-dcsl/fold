@@ -1,9 +1,8 @@
 root_dir  := justfile_directory()
 linker    := root_dir + "/../target/x86_64-unknown-linux-none/debug/fold"
 seccomp-linker := root_dir + "/../examples/target/x86_64-unknown-linux-none/debug/seccomp-linker"
+seccomp-sym-linker := root_dir + "/../examples/target/x86_64-unknown-linux-none/debug/seccomp-sym-linker"
 trampoline-linker := root_dir + "/../examples/target/x86_64-unknown-linux-none/debug/trampoline-linker"
-
-
 
 programs:
 	# hello
@@ -62,6 +61,11 @@ programs:
 	gcc -o trampoline-print hello.c -pie -fPIE -lm
 	patchelf --set-interpreter {{trampoline-linker}} trampoline-print
 	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so trampoline-print
+
+	# hello.c 
+	gcc -o seccomp-sym-hello-c hello.c -pie -fPIE
+	patchelf --set-interpreter {{seccomp-sym-linker}} seccomp-sym-hello-c
+	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so seccomp-sym-hello-c
 
 clean:
 	rm *.o -f
