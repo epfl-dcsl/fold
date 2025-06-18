@@ -11,9 +11,9 @@ pub mod installer;
 use core::ffi::CStr;
 
 use fold::{
-    exit,
+    Env, Exit, exit,
     filters::{self, ObjectFilter},
-    init_logging, println, Env, Exit,
+    init_logging, println,
 };
 use macros::hook;
 
