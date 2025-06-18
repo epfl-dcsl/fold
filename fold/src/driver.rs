@@ -123,7 +123,7 @@ impl Fold {
     pub fn insert_phase_after(mut self, name: impl AsRef<str>, other: impl AsRef<str>) -> Self {
         if let Some(index) = self.phases.iter().position(|p| p.name == other.as_ref()) {
             self.phases.insert(
-                index,
+                index + 1,
                 Phase {
                     name: name.as_ref().to_string(),
                     modules: Arena::new(),
