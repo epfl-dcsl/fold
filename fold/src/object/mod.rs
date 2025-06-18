@@ -194,6 +194,17 @@ impl Object {
         weak_result
     }
 
+    pub fn symbols<'a>(
+        &self,
+        manifold: &'a Manifold,
+    ) -> impl Iterator<Item = Result<(&goblin::elf64::sym::Sym, &CStr), FoldError>> {
+        self.sections
+            .iter()
+            .map(|h| &manifold.sections[*h])
+            .filter_map(|s| s.as_symbol_table().ok())
+            .flat_map(|s| s.symbol_iter(manifold))
+    }
+
     /// Find the given symbol in one of the [`SHT_STRTAB`](goblin::elf::section_header::SHT_STRTAB) section of this object.
     /// Symbols with binding [`STB_LOCAL`] or [`STB_GLOBAL`] take priority over [`STB_WEAK`].
     pub fn find_symbol<'a>(
