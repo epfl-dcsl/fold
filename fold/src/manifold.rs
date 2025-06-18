@@ -1,6 +1,7 @@
 use alloc::borrow::ToOwned;
 use alloc::ffi::CString;
 use alloc::sync::Arc;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::ffi::CStr;
 use core::ops::{Index, IndexMut};
@@ -56,6 +57,26 @@ impl Manifold {
             let section = Section::new(section, obj_idx, self);
             let idx = self.sections.push(section);
             sections.push(idx);
+        }
+
+        // Rename sections
+        let mut names = vec![];
+        let shstr = &self.sections[sections[obj.e_shstrndx as usize]];
+        for (hdx, section) in self.sections.enumerate() {
+            let name = shstr
+                .as_string_table()
+                .map(|e| {
+                    e.get_symbol(section.name_idx as usize)
+                        .unwrap_or_default()
+                        .to_owned()
+                })
+                .unwrap_or_default();
+
+            names.push((hdx, name));
+        }
+
+        for (hdx, name) in names {
+            self[hdx].name = name;
         }
 
         // Initialize segment and section indexes.

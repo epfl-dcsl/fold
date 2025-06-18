@@ -1,3 +1,4 @@
+use alloc::ffi::CString;
 use alloc::sync::Arc;
 use core::ffi::CStr;
 
@@ -45,9 +46,10 @@ pub struct Section {
     pub mapping: Arc<Mapping>,
     /// The object containing this section.
     pub obj: Handle<Object>,
+    /// Name of the section
+    pub name: CString,
     /// Offset to the name of the section in the object's .shstrtab section.
-    /// TODO: store name directly.
-    pub name: u32,
+    pub name_idx: u32,
     /// The type of the section (sh_type).
     pub tag: u32,
     /// Section flags.
@@ -86,7 +88,8 @@ impl Section {
         Self {
             mapping: mapping.clone(),
             obj: obj_idx,
-            name: header.sh_name,
+            name: CString::default(),
+            name_idx: header.sh_name,
             tag: header.sh_type,
             flags: header.sh_flags as usize,
             addr: header.sh_addr as usize,
@@ -117,6 +120,10 @@ impl Section {
         SHT_SYMTAB,
         "dynamic symbol table"
     );
+
+    pub fn rename(&mut self, name: CString) {
+        self.name = name;
+    }
 }
 
 // ———————————————————————————————— SectionTrait ————————————————————————————————— //
@@ -136,11 +143,8 @@ pub trait SectionT {
     }
 
     /// Return the name of the section stored in the `.shstrtab` section.
-    fn get_display_name<'a>(&self, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
-        let obj = manifold.objects.get(self.section().obj).unwrap();
-        manifold.sections[obj.sections[obj.e_shstrndx as usize]]
-            .as_string_table()?
-            .get_symbol(self.section().name as usize)
+    fn get_display_name<'a>(&self) -> &CStr {
+        &self.section().name
     }
 }
 

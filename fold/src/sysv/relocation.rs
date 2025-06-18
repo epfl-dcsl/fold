@@ -87,7 +87,7 @@ fn process_reloc(
 ) -> Result<(), Box<dyn core::fmt::Debug>> {
     log::info!(
         "Process relocation of section {:?} for object {}...",
-        section.get_display_name(manifold).unwrap_or_default(),
+        section.get_display_name(),
         obj.display_path()
     );
 
