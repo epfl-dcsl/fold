@@ -42,7 +42,7 @@ pub fn hook(_attr: TokenStream, mut item: TokenStream) -> TokenStream {
                     "pop rbx",
                     "mov rax,[rsp]",
                     "jmp rbx",
-                    const 0x55555555ba70i64,
+                    const 0xdeadbeef,
                     sym #ident
                 );
             }
