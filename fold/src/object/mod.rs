@@ -130,11 +130,11 @@ impl Object {
         self.mapping.bytes()
     }
 
-    pub fn section_headers(&self) -> ElfItemIterator<SectionHeader> {
+    pub fn section_headers(&'_ self) -> ElfItemIterator<'_, SectionHeader> {
         ElfItemIterator::new(self.raw(), self.e_shoff, self.e_shnum, self.e_shentsize)
     }
 
-    pub fn program_headers(&self) -> ElfItemIterator<ProgramHeader> {
+    pub fn program_headers(&'_ self) -> ElfItemIterator<'_, ProgramHeader> {
         ElfItemIterator::new(self.raw(), self.e_phoff, self.e_phnum, self.e_phentsize)
     }
 

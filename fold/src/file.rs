@@ -50,20 +50,20 @@ impl MappingMut {
 /// Open a file in read only
 pub fn open_file_ro<P: path::Arg + core::marker::Copy + core::fmt::Debug>(
     path: P,
-) -> Result<OwnedFd, ()> {
+) -> Option<OwnedFd> {
     if fs::stat(path).is_err() {
         panic!("File {:?} doesn't exit", path);
     }
-    let fd = fs::open(path, fs::OFlags::RDONLY, fs::Mode::empty()).map_err(|_| ())?;
-    let stat = fs::fstat(&fd).map_err(|_| ())?;
+    let fd = fs::open(path, fs::OFlags::RDONLY, fs::Mode::empty()).ok()?;
+    let stat = fs::fstat(&fd).ok()?;
 
     if (stat.st_mode & S_IFMT) == S_IFDIR {
         // It is a directory
-        Err(())
+        None
     } else {
         // If it not a directory, most likely a file
         // See `man stat`, or https://linux.die.net/man/2/stat
-        Ok(fd)
+        Some(fd)
     }
 }
 
