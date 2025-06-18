@@ -30,8 +30,13 @@ impl Module for SysCollect {
         let obj = &manifold[obj];
 
         // Combine filters for write and exit
-        obj.symbols(&manifold)
-            .for_each(|s| log::info!("{:?}", s.unwrap().1));
+        for o in obj.symbols(&manifold) {
+            if let Ok((_sym, name)) = o {
+                if name.to_string_lossy().contains("puts") {
+                    log::info!("{:?}", name);
+                }
+            }
+        }
         Ok(())
     }
 }
