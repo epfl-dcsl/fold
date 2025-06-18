@@ -1,6 +1,5 @@
 use alloc::borrow::ToOwned;
 use alloc::ffi::CString;
-use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::ffi::CStr;
@@ -25,8 +24,6 @@ pub struct Manifold {
     pub sections: Arena<Section>,
     pub segments: Arena<Segment>,
     pub shared: ShareMap,
-    pub regions: Arena<()>,
-    pub search_paths: Vec<String>,
     pub env: Env,
 }
 
@@ -36,9 +33,7 @@ impl Manifold {
             objects: Arena::new(),
             sections: Arena::new(),
             segments: Arena::new(),
-            regions: Arena::new(),
             shared: ShareMap::new(),
-            search_paths: Vec::new(),
             env,
         }
     }
@@ -69,10 +64,6 @@ impl Manifold {
         obj.sections = sections;
 
         obj_idx
-    }
-
-    pub fn add_search_paths(&mut self, paths: Vec<String>) {
-        self.search_paths.extend(paths);
     }
 
     /// Find the given symbol across the different loaded objects. Symbols with NDX set to
