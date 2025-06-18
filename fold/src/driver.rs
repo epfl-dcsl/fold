@@ -161,6 +161,19 @@ impl Fold {
         self
     }
 
+    // Insert a phase after another
+    pub fn push_front_phase(mut self, name: impl AsRef<str>) -> Self {
+        self.phases.insert(
+            0,
+            Phase {
+                name: name.as_ref().to_string(),
+                modules: Arena::new(),
+                filters: Vec::new(),
+            },
+        );
+        self
+    }
+
     /// Register a module for the current phase.
     pub fn register<I>(mut self, module: impl Module + 'static, item: I) -> Self
     where
