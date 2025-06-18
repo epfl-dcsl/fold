@@ -1,10 +1,17 @@
 use alloc::boxed::Box;
 
+use alloc::vec;
+use alloc::vec::Vec;
 use fold::manifold::Manifold;
 use fold::module::Module;
 use fold::object::Object;
+use fold::share_map::ShareMapKey;
 use fold::Handle;
-use syscalls::{syscall, Sysno};
+
+const SYS_WRITE: u32 = 1;
+const SYS_WRITEV: u32 = 20;
+const SYS_IOCTL: u32 = 16;
+const SYS_EXIT_GROUP: u32 = 231;
 
 #[derive(Debug)]
 struct SysCollectError;
@@ -14,6 +21,9 @@ impl From<SysCollectError> for Box<dyn core::fmt::Debug> {
         Box::new(value)
     }
 }
+
+pub const SECCOMP_SYSCALL_FILTER: ShareMapKey<Vec<u32>> =
+    ShareMapKey::new("seccomp_syscall_filter");
 
 pub struct SysCollect;
 
@@ -29,14 +39,24 @@ impl Module for SysCollect {
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
         let obj = &manifold[obj];
 
+        let mut filter = vec![];
+
         // Combine filters for write and exit
         for o in obj.symbols(&manifold) {
             if let Ok((_sym, name)) = o {
                 if name.to_string_lossy().contains("puts") {
-                    log::info!("{:?}", name);
+                    filter.push(SYS_WRITEV);
+                    filter.push(SYS_WRITE);
+                    filter.push(SYS_IOCTL);
+                    filter.push(SYS_EXIT_GROUP);
                 }
             }
         }
+
+        log::info!("Identified syscall(s) needed: {:?}", filter);
+
+        manifold.shared.insert(SECCOMP_SYSCALL_FILTER, filter);
+
         Ok(())
     }
 }
