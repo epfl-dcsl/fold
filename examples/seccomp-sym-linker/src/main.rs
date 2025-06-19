@@ -8,7 +8,7 @@ mod seccomp;
 mod syscall_collect;
 
 use fold::filters::{ItemFilter, ObjectFilter};
-use fold::{exit, init_logging, Env, Exit};
+use fold::{Env, Exit, exit, init_logging};
 use seccomp::Seccomp;
 use syscall_collect::SysCollect;
 
@@ -18,10 +18,11 @@ fn entry(env: Env) -> ! {
     init_logging(log::LevelFilter::Trace);
 
     fold::default_chain("seccomp-sym-linker", env)
-        .push_front_phase("syscall collect")
-        .register_in_phase("syscall collect", SysCollect, ObjectFilter::any())
-        .insert_phase_after("syscall restriction", "fini array")
-        .register_in_phase("syscall restriction", Seccomp, ItemFilter::ManifoldFilter)
+        .front()
+        .register("syscall collect", SysCollect, ObjectFilter::any())
+        .select("fini array")
+        .before()
+        .register("syscall restriction", Seccomp, ItemFilter::ManifoldFilter)
         .run();
 
     exit(Exit::Success);

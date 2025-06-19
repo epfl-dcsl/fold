@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use goblin::elf::program_header::PT_LOAD;
 use goblin::elf::section_header::{SHT_FINI_ARRAY, SHT_INIT_ARRAY};
 
-use crate::arena::{Arena, Handle};
+use crate::arena::Handle;
 use crate::cli::Config;
 use crate::env::Env;
 use crate::filters::{self, section, segment, ItemFilter, ObjectFilter};
@@ -33,8 +33,8 @@ pub struct Fold {
 
 struct Phase {
     name: String,
-    modules: Arena<ModuleRef>,
-    filters: Vec<(ItemFilter, Handle<ModuleRef>)>,
+    module: ModuleRef,
+    filter: ItemFilter,
 }
 
 pub fn new(env: Env, loader_name: &str) -> Fold {
@@ -63,11 +63,9 @@ pub fn new(env: Env, loader_name: &str) -> Fold {
 // Return default sysv chain
 pub fn default_chain(loader_name: &str, env: Env) -> Fold {
     new(env, loader_name)
-        .search_path("/lib")
-        .search_path("/lib64")
-        .search_path("/usr/lib/")
-        .phase("collect")
+        .search_paths(["/lib", "/lib64", "/usr/lib/"].iter())
         .register(
+            "collect",
             SysvRemappingCollector::new()
                 .replace("libc.so", "libc.so")
                 .drop_multiple(&[
@@ -83,12 +81,10 @@ pub fn default_chain(loader_name: &str, env: Env) -> Fold {
                 ]),
             ObjectFilter::any(),
         )
-        .phase("load")
-        .register(SysvLoader, segment(PT_LOAD))
-        .phase("tls")
-        .register(SysvTls, ItemFilter::ManifoldFilter)
-        .phase("relocation")
+        .register("load", SysvLoader, segment(PT_LOAD))
+        .register("tls", SysvTls, ItemFilter::ManifoldFilter)
         .register(
+            "relocation",
             SysvReloc::new(),
             ObjectFilter {
                 mask: filters::ObjectMask::Any, // TODO: match only elf
@@ -96,74 +92,15 @@ pub fn default_chain(loader_name: &str, env: Env) -> Fold {
                 elf_type: 0,
             },
         )
-        .phase("protect")
-        .register(SysvProtect, segment(PT_LOAD))
-        .phase("init array")
-        .register(SysvInitArray, section(SHT_INIT_ARRAY))
-        .phase("fini array")
-        .register(SysvInitArray, section(SHT_FINI_ARRAY))
-        .phase("start")
-        .register(SysvStart, ObjectFilter::any())
+        .register("protect", SysvProtect, segment(PT_LOAD))
+        .register("init array", SysvInitArray, section(SHT_INIT_ARRAY))
+        .register("fini array", SysvInitArray, section(SHT_FINI_ARRAY))
+        .register("start", SysvStart, ObjectFilter::any())
 }
 
 // ————————————————————————————————— Phases ————————————————————————————————— //
 
-pub struct PhaseHandle {
-    fold: Fold,
-    phase: usize,
-}
-
-impl PhaseHandle {
-    pub fn register<I>(mut self, module: impl Module + 'static, item: I) -> Fold
-    where
-        I: Into<ItemFilter>,
-    {
-        let phase = &mut self.fold.phases[self.phase];
-
-        let id = item.into();
-        let mod_idx = phase.modules.push(Box::new(module));
-        phase.filters.push((id, mod_idx));
-
-        self.fold
-    }
-
-    pub fn delete(mut self) -> Fold {
-        self.fold.phases.remove(self.phase);
-        self.fold
-    }
-
-    pub fn after(self) -> Self {
-        PhaseHandle {
-            fold: self.fold,
-            phase: self.phase + 1,
-        }
-    }
-
-    pub fn create(mut self, name: impl AsRef<str>) -> Self {
-        self.fold.phases.insert(
-            self.phase,
-            Phase {
-                name: name.as_ref().to_string(),
-                modules: Arena::new(),
-                filters: Vec::new(),
-            },
-        );
-
-        self
-    }
-}
-
 impl Fold {
-    /// Declare a new phase.
-    pub fn phase(mut self, name: impl AsRef<str>) -> Self {
-        self.phases.push(Phase {
-            name: name.as_ref().to_string(),
-            modules: Arena::new(),
-            filters: Vec::new(),
-        });
-        self
-    }
-
     pub fn select(self, name: impl AsRef<str>) -> PhaseHandle {
         if let Some(index) = self.phases.iter().position(|p| p.name == name.as_ref()) {
             PhaseHandle {
@@ -175,86 +112,59 @@ impl Fold {
         }
     }
 
-    pub fn apply<F: FnMut(PhaseHandle) -> Self>(self, name: impl AsRef<str>, mut map: F) -> Self {
+    pub fn apply<F: FnMut(PhaseHandle) -> R, R>(self, name: impl AsRef<str>, mut map: F) -> R {
         map(self.select(name))
     }
 
-    // Insert a phase after another
-    pub fn insert_phase_after(mut self, name: impl AsRef<str>, other: impl AsRef<str>) -> Self {
-        if let Some(index) = self.phases.iter().position(|p| p.name == other.as_ref()) {
-            self.phases.insert(
-                index + 1,
-                Phase {
-                    name: name.as_ref().to_string(),
-                    modules: Arena::new(),
-                    filters: Vec::new(),
-                },
-            );
-        } else {
-            log::warn!("Adding phase '{}' doesn't exists, ignoring", other.as_ref());
+    pub fn front(self) -> PositionedPhaseHandle {
+        PositionedPhaseHandle {
+            hdx: PhaseHandle {
+                fold: self,
+                phase: 0,
+            },
+            position: CursorPosition::Before,
         }
+    }
 
-        self
+    pub fn back(self) -> PositionedPhaseHandle {
+        let phase = self.phases.len() - 1;
+        PositionedPhaseHandle {
+            hdx: PhaseHandle { fold: self, phase },
+            position: CursorPosition::After,
+        }
     }
 
     /// Register a module for the current phase.
-    pub fn register_in_phase<I>(
+    pub fn register<I>(
         mut self,
-        phase: impl AsRef<str>,
+        name: impl AsRef<str>,
         module: impl Module + 'static,
         item: I,
     ) -> Self
     where
         I: Into<ItemFilter>,
     {
-        let Some(phase) = self.phases.iter_mut().find(|p| p.name == phase.as_ref()) else {
-            log::warn!(
-                "Adding module '{}' but no phase declared yet, ignoring",
-                module.name()
-            );
-            return self;
-        };
+        self.phases.push(Phase {
+            name: name.as_ref().to_owned(),
+            module: Box::new(module),
+            filter: item.into(),
+        });
 
-        let id = item.into();
-        let mod_idx = phase.modules.push(Box::new(module));
-        phase.filters.push((id, mod_idx));
-        self
-    }
-
-    // Insert a phase after another
-    pub fn push_front_phase(mut self, name: impl AsRef<str>) -> Self {
-        self.phases.insert(
-            0,
-            Phase {
-                name: name.as_ref().to_string(),
-                modules: Arena::new(),
-                filters: Vec::new(),
-            },
-        );
-        self
-    }
-
-    /// Register a module for the current phase.
-    pub fn register<I>(mut self, module: impl Module + 'static, item: I) -> Self
-    where
-        I: Into<ItemFilter>,
-    {
-        let Some(phase) = self.phases.last_mut() else {
-            log::warn!(
-                "Adding module '{}' but no phase declared yet, ignoring",
-                module.name()
-            );
-            return self;
-        };
-
-        let id = item.into();
-        let mod_idx = phase.modules.push(Box::new(module));
-        phase.filters.push((id, mod_idx));
         self
     }
 
     pub fn search_path(mut self, path: impl AsRef<str>) -> Self {
         self.search_path.push(path.as_ref().to_string());
+        self
+    }
+
+    pub fn search_paths<I, S>(mut self, paths: I) -> Self
+    where
+        I: Iterator<Item = S>,
+        S: AsRef<str>,
+    {
+        self.search_path
+            .extend(paths.map(|s| s.as_ref().to_owned()));
         self
     }
 
@@ -280,11 +190,9 @@ impl Fold {
 
     /// Applies the modules of the phase to every objects.
     fn drive_phase(phase: &mut Phase, manifold: &mut Manifold) {
-        for (filter, idx) in &phase.filters {
-            if matches!(filter, ItemFilter::ManifoldFilter) {
-                let module: &mut Box<dyn Module> = &mut phase.modules[*idx];
-                module.process_manifold(manifold).unwrap();
-            }
+        if matches!(phase.filter, ItemFilter::ManifoldFilter) {
+            let module: &mut Box<dyn Module> = &mut phase.module;
+            module.process_manifold(manifold).unwrap();
         }
 
         for handle in manifold.objects.handle_generator() {
@@ -299,65 +207,150 @@ impl Fold {
 
     /// Applies all modules to an object.
     fn apply_modules(obj: Handle<Object>, phase: &mut Phase, manifold: &mut Manifold) {
-        for (filter, idx) in &phase.filters {
-            let module: &mut Box<dyn Module> = &mut phase.modules[*idx];
+        let module: &mut Box<dyn Module> = &mut phase.module;
 
-            if !filter
-                .object_filter()
-                .is_some_and(|f| manifold[obj].matches(f))
-            {
-                // Object does not match
-                continue;
-            }
+        if !phase
+            .filter
+            .object_filter()
+            .is_some_and(|f| manifold[obj].matches(f))
+        {
+            // Object does not match
+            return;
+        }
 
-            match filter {
-                ItemFilter::ManifoldFilter => {}
-                ItemFilter::Object(_) => {
-                    if let Err(err) = module.process_object(obj, manifold) {
-                        log::error!(
-                            "Unable to process object {:?} with module {}: {err:#?}",
-                            manifold.objects.get(obj).map(|o| o.display_path()),
-                            module.name()
-                        );
-                        panic!();
-                    }
+        match phase.filter {
+            ItemFilter::ManifoldFilter => {}
+            ItemFilter::Object(_) => {
+                if let Err(err) = module.process_object(obj, manifold) {
+                    log::error!(
+                        "Unable to process object {:?} with module {}: {err:#?}",
+                        manifold.objects.get(obj).map(|o| o.display_path()),
+                        module.name()
+                    );
+                    panic!();
                 }
-                ItemFilter::Segment(segment, _) => {
-                    // *cries in functional programming, but borrow checker is angry*
-                    let mut idx = 0;
-                    while let Some(handle) = manifold[obj].segments.get(idx) {
-                        idx += 1;
-                        if manifold[*handle].tag == segment.tag {
-                            if let Err(err) = module.process_segment(*handle, manifold) {
-                                log::error!(
+            }
+            ItemFilter::Segment(segment, _) => {
+                // *cries in functional programming, but borrow checker is angry*
+                let mut idx = 0;
+                while let Some(handle) = manifold[obj].segments.get(idx) {
+                    idx += 1;
+                    if manifold[*handle].tag == segment.tag {
+                        if let Err(err) = module.process_segment(*handle, manifold) {
+                            log::error!(
                                     "Unable to process segment #{} of object {:?} with module {}: {err:#?}",
                                     idx,
                                     manifold.objects.get(obj).map(|o| o.display_path()),
                                     module.name()
                                 );
-                                panic!();
-                            }
+                            panic!();
                         }
                     }
                 }
-                ItemFilter::Section(section, _) => {
-                    let mut idx = 0;
-                    while let Some(handle) = manifold[obj].sections.get(idx) {
-                        idx += 1;
-                        if manifold[*handle].tag == section.tag {
-                            if let Err(err) = module.process_section(*handle, manifold) {
-                                log::error!(
+            }
+            ItemFilter::Section(section, _) => {
+                let mut idx = 0;
+                while let Some(handle) = manifold[obj].sections.get(idx) {
+                    idx += 1;
+                    if manifold[*handle].tag == section.tag {
+                        if let Err(err) = module.process_section(*handle, manifold) {
+                            log::error!(
                                     "Unable to process section #{} of object {:?} with module {}: {err:#?}",
                                     idx,
                                     manifold.objects.get(obj).map(|o| o.display_path()),
                                     module.name()
                                 );
-                                panic!();
-                            }
+                            panic!();
                         }
                     }
                 }
             }
         }
+    }
+}
+
+pub struct PhaseHandle {
+    fold: Fold,
+    phase: usize,
+}
+
+impl PhaseHandle {
+    pub fn delete(mut self) -> Fold {
+        self.fold.phases.remove(self.phase);
+        self.fold
+    }
+
+    pub fn replace<I>(
+        mut self,
+        name: impl AsRef<str>,
+        module: impl Module + 'static,
+        item: I,
+    ) -> Fold
+    where
+        I: Into<ItemFilter>,
+    {
+        let phase = &mut self.fold.phases[self.phase];
+
+        phase.name = name.as_ref().to_owned();
+        phase.module = Box::new(module);
+        phase.filter = item.into();
+
+        self.fold
+    }
+
+    pub fn after(self) -> PositionedPhaseHandle {
+        PositionedPhaseHandle {
+            hdx: self,
+            position: CursorPosition::After,
+        }
+    }
+
+    pub fn before(self) -> PositionedPhaseHandle {
+        PositionedPhaseHandle {
+            hdx: self,
+            position: CursorPosition::Before,
+        }
+    }
+}
+
+enum CursorPosition {
+    Before,
+    After,
+}
+
+pub struct PositionedPhaseHandle {
+    hdx: PhaseHandle,
+    position: CursorPosition,
+}
+
+impl PositionedPhaseHandle {
+    /// Returns the original `PhaseHandle`.
+    pub fn as_handle(self) -> PhaseHandle {
+        self.hdx
+    }
+
+    pub fn register<I>(
+        mut self,
+        name: impl AsRef<str>,
+        module: impl Module + 'static,
+        item: I,
+    ) -> Fold
+    where
+        I: Into<ItemFilter>,
+    {
+        self.hdx.fold.phases.insert(
+            self.hdx.phase
+                + match self.position {
+                    CursorPosition::After => 1,
+                    CursorPosition::Before => 0,
+                },
+            Phase {
+                name: name.as_ref().to_string(),
+                module: Box::new(module),
+                filter: item.into(),
+            },
+        );
+
+        self.hdx.fold
     }
 }
