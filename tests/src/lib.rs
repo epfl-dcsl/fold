@@ -111,4 +111,13 @@ mod tests {
             .expect("Failed to execute process");
         assert!(String::from_utf8_lossy(&output.stdout).contains("hi there"));
     }
+
+    #[test]
+    fn trampoline() {
+        let output = Command::new("../samples/trampoline-print")
+            .output()
+            .expect("Failed to execute process");
+        assert!(String::from_utf8_lossy(&output.stdout).contains("hi there\n"));
+        assert!(String::from_utf8_lossy(&output.stdout).contains("from hook"));
+    }
 }
