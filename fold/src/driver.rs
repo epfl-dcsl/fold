@@ -101,6 +101,7 @@ pub fn default_chain(loader_name: &str, env: Env) -> Fold {
 // ————————————————————————————————— Phases ————————————————————————————————— //
 
 impl Fold {
+    /// Creates a `PhaseHandle` to modify the phase with named `name`.
     pub fn select(self, name: impl AsRef<str>) -> PhaseHandle {
         if let Some(index) = self.phases.iter().position(|p| p.name == name.as_ref()) {
             PhaseHandle {
@@ -112,10 +113,13 @@ impl Fold {
         }
     }
 
+    /// Identifies the phase `name` and update it using the provided mapping function, returning the output of the mapping
+    /// function.
     pub fn apply<F: FnMut(PhaseHandle) -> R, R>(self, name: impl AsRef<str>, mut map: F) -> R {
         map(self.select(name))
     }
 
+    /// Creates a `PositionedPhaseHandle` at the start of the chain.
     pub fn front(self) -> PositionedPhaseHandle {
         PositionedPhaseHandle {
             hdx: PhaseHandle {
@@ -126,6 +130,7 @@ impl Fold {
         }
     }
 
+    /// Creates a `PositionedPhaseHandle` at the end of the chain.
     pub fn back(self) -> PositionedPhaseHandle {
         let phase = self.phases.len() - 1;
         PositionedPhaseHandle {
@@ -134,7 +139,7 @@ impl Fold {
         }
     }
 
-    /// Register a module for the current phase.
+    /// Registers a module at the end of the chain.
     pub fn register<I>(
         mut self,
         name: impl AsRef<str>,
@@ -269,17 +274,21 @@ impl Fold {
     }
 }
 
+/// Handle used to modify an already existing phase by either replacing it with another module or deleting it. It can
+/// also be positioned before or after the phase to insert new ones.
 pub struct PhaseHandle {
     fold: Fold,
     phase: usize,
 }
 
 impl PhaseHandle {
+    /// Deletes the selected phase, effectively removing it from the chain.
     pub fn delete(mut self) -> Fold {
         self.fold.phases.remove(self.phase);
         self.fold
     }
 
+    /// Replaces the selected phase with a new name, module and filter.
     pub fn replace<I>(
         mut self,
         name: impl AsRef<str>,
@@ -298,6 +307,8 @@ impl PhaseHandle {
         self.fold
     }
 
+    /// Creates a `PositionedPhaseHandle` handle between the selected one and the next one, allowing insertion of
+    /// phases to be executed after the selected one.
     pub fn after(self) -> PositionedPhaseHandle {
         PositionedPhaseHandle {
             hdx: self,
@@ -305,6 +316,8 @@ impl PhaseHandle {
         }
     }
 
+    /// Creates a `PositionedPhaseHandle` handle between the selected one and the previous one, allowing insertion of
+    /// phases to be executed before the selected one.
     pub fn before(self) -> PositionedPhaseHandle {
         PositionedPhaseHandle {
             hdx: self,
@@ -318,6 +331,7 @@ enum CursorPosition {
     After,
 }
 
+/// Handle used to new phases relatively to other ones.
 pub struct PositionedPhaseHandle {
     hdx: PhaseHandle,
     position: CursorPosition,
@@ -329,6 +343,7 @@ impl PositionedPhaseHandle {
         self.hdx
     }
 
+    /// Registers a new phase at the position of the handle.
     pub fn register<I>(
         mut self,
         name: impl AsRef<str>,
