@@ -33,17 +33,17 @@ fn entry(env: Env) -> ! {
     init_logging(log::LevelFilter::Trace);
 
     fold::default_chain("trampoline", env)
-        .apply("relocation", |p| p
-        .after()
-        .create("hooks")
-        .register(
-            TrampolineReloc::new().with_hook("puts", __puts_hook_trampoline),
-            ObjectFilter {
-                mask: filters::ObjectMask::Any,
-                os_abi: 0,
-                elf_type: 0,
-            },
-        ))
+        .apply("relocation", |p| {
+            p.after().register(
+                "hooks",
+                TrampolineReloc::new().with_hook("puts", __puts_hook_trampoline),
+                ObjectFilter {
+                    mask: filters::ObjectMask::Any,
+                    os_abi: 0,
+                    elf_type: 0,
+                },
+            )
+        })
         .run();
 
     exit(Exit::Success);
