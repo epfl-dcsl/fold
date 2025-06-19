@@ -108,6 +108,51 @@ pub fn default_chain(loader_name: &str, env: Env) -> Fold {
 
 // ————————————————————————————————— Phases ————————————————————————————————— //
 
+pub struct PhaseHandle {
+    fold: Fold,
+    phase: usize,
+}
+
+impl PhaseHandle {
+    pub fn register<I>(mut self, module: impl Module + 'static, item: I) -> Fold
+    where
+        I: Into<ItemFilter>,
+    {
+        let phase = &mut self.fold.phases[self.phase];
+
+        let id = item.into();
+        let mod_idx = phase.modules.push(Box::new(module));
+        phase.filters.push((id, mod_idx));
+
+        self.fold
+    }
+
+    pub fn delete(mut self) -> Fold {
+        self.fold.phases.remove(self.phase);
+        self.fold
+    }
+
+    pub fn after(self) -> Self {
+        PhaseHandle {
+            fold: self.fold,
+            phase: self.phase + 1,
+        }
+    }
+
+    pub fn create(mut self, name: impl AsRef<str>) -> Self {
+        self.fold.phases.insert(
+            self.phase,
+            Phase {
+                name: name.as_ref().to_string(),
+                modules: Arena::new(),
+                filters: Vec::new(),
+            },
+        );
+
+        self
+    }
+}
+
 impl Fold {
     /// Declare a new phase.
     pub fn phase(mut self, name: impl AsRef<str>) -> Self {
@@ -117,6 +162,21 @@ impl Fold {
             filters: Vec::new(),
         });
         self
+    }
+
+    pub fn select(self, name: impl AsRef<str>) -> PhaseHandle {
+        if let Some(index) = self.phases.iter().position(|p| p.name == name.as_ref()) {
+            PhaseHandle {
+                fold: self,
+                phase: index,
+            }
+        } else {
+            panic!("Unable to find phase \"{}\"", name.as_ref());
+        }
+    }
+
+    pub fn apply<F: FnMut(PhaseHandle) -> Self>(self, name: impl AsRef<str>, mut map: F) -> Self {
+        map(self.select(name))
     }
 
     // Insert a phase after another
