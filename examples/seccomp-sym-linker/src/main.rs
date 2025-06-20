@@ -7,7 +7,7 @@ extern crate fold;
 mod seccomp;
 mod syscall_collect;
 
-use fold::filters::{ItemFilter, ObjectFilter};
+use fold::filters::Filter;
 use fold::{Env, Exit, exit, init_logging};
 use seccomp::Seccomp;
 use syscall_collect::SysCollect;
@@ -19,10 +19,10 @@ fn entry(env: Env) -> ! {
 
     fold::default_chain("seccomp-sym-linker", env)
         .front()
-        .register("syscall collect", SysCollect, ObjectFilter::any())
+        .register("syscall collect", SysCollect, Filter::any_object())
         .select("fini array")
         .before()
-        .register("syscall restriction", Seccomp, ItemFilter::ManifoldFilter)
+        .register("syscall restriction", Seccomp, Filter::manifold())
         .run();
 
     exit(Exit::Success);

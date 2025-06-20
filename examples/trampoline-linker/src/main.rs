@@ -11,9 +11,9 @@ pub mod installer;
 use core::ffi::CStr;
 
 use fold::{
-    Env, Exit, exit,
-    filters::{self, ObjectFilter},
-    init_logging, println,
+    exit,
+    filters::Filter,
+    init_logging, println, Env, Exit,
 };
 use macros::hook;
 
@@ -37,11 +37,7 @@ fn entry(env: Env) -> ! {
             p.after().register(
                 "hooks",
                 TrampolineReloc::new().with_hook("puts", __puts_hook_trampoline),
-                ObjectFilter {
-                    mask: filters::ObjectMask::Any,
-                    os_abi: 0,
-                    elf_type: 0,
-                },
+                Filter::any_object(),
             )
         })
         .run();
