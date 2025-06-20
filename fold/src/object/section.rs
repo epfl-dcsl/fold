@@ -143,7 +143,7 @@ pub trait SectionT {
     }
 
     /// Return the name of the section stored in the `.shstrtab` section.
-    fn get_display_name<'a>(&self) -> &CStr {
+    fn get_display_name(&self) -> &CStr {
         &self.section().name
     }
 }

@@ -42,18 +42,17 @@ impl Module for SysCollect {
         let mut filter = vec![];
 
         // Combine filters for write and exit
-        for o in obj.symbols(&manifold) {
-            if let Ok((_sym, name)) = o {
-                if name.to_string_lossy().contains("puts") {
+        for o in obj.symbols(manifold) {
+            if let Ok((_sym, name)) = o
+                && name.to_string_lossy().contains("puts") {
                     filter.push(SYS_WRITEV);
                     filter.push(SYS_WRITE);
                     filter.push(SYS_IOCTL);
                     filter.push(SYS_EXIT_GROUP);
                 }
-            }
         }
 
-        log::info!("Identified syscall(s) needed: {:?}", filter);
+        log::info!("Identified syscall(s) needed: {filter:?}");
 
         manifold.shared.insert(SECCOMP_SYSCALL_FILTER, filter);
 

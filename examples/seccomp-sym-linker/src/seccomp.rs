@@ -103,7 +103,7 @@ impl Module for Seccomp {
             .get(SECCOMP_SYSCALL_FILTER)
             .unwrap_or(&empty);
 
-        log::info!("Allowing only syscall(s): {:?}", syscall_filter);
+        log::info!("Allowing only syscall(s): {syscall_filter:?}");
 
         // Combine filters for write and exit
         let mut filters = build_seccomp_filter(syscall_filter.as_slice());
