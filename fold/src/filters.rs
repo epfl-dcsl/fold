@@ -101,7 +101,7 @@ impl Filter {
 }
 
 impl BitOr for Filter {
-    type Output;
+    type Output = Self;
 
     fn bitor(mut self, mut rhs: Self) -> Self::Output {
         self.items.append(&mut rhs.items);
