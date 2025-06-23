@@ -61,7 +61,7 @@ pub fn new(env: Env, loader_name: &str) -> Fold {
 // Return default sysv chain
 pub fn default_chain(loader_name: &str, env: Env) -> Fold {
     new(env, loader_name)
-        .search_paths(["/lib", "/lib64", "/usr/lib/"].iter())
+        .search_paths(["musl/lib", "/lib", "/lib64", "/usr/lib/"].iter())
         .register(
             "collect",
             SysvRemappingCollector::new()
