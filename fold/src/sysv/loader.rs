@@ -60,8 +60,8 @@ impl Module for SysvLoader {
                             .iter()
                             .map(|s| &fold.segments[*s])
                             .filter(|s| s.tag == PT_LOAD)
-                            .max_by_key(|s| s.vaddr)
                             .map(|s| s.vaddr + s.mem_size)
+                            .max()
                             .unwrap_or(0)
                     } else {
                         0
@@ -78,9 +78,12 @@ impl Module for SysvLoader {
 
             log::info!("Segment loaded at 0x{:x}", mapping as usize);
 
-            // Probably PIE
-            if obj.shared.get(SYSV_LOADER_BASE_ADDR).is_none() && addr == 0 {
-                obj.shared.insert(SYSV_LOADER_BASE_ADDR, mapping as usize)
+            if obj.shared.get(SYSV_LOADER_BASE_ADDR).is_none() {
+                obj.shared.insert(
+                    SYSV_LOADER_BASE_ADDR,
+                    // If addr == 0, probably PIE
+                    if addr == 0 { mapping as usize } else { 0 },
+                )
             }
 
             let mapping_start = mapping.add(addr & 0xfff);
