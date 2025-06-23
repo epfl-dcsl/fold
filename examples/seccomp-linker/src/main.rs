@@ -6,7 +6,7 @@ extern crate fold;
 
 mod seccomp;
 
-use fold::filters::ItemFilter;
+use fold::filters::Filter;
 use fold::{Env, Exit, exit, init_logging};
 use seccomp::Seccomp;
 
@@ -18,7 +18,7 @@ fn entry(env: Env) -> ! {
     fold::default_chain("seccomp-linker", env)
         .select("fini array")
         .after()
-        .register("syscall restriction", Seccomp, ItemFilter::ManifoldFilter)
+        .register("syscall restriction", Seccomp, Filter::manifold())
         .run();
 
     exit(Exit::Success);

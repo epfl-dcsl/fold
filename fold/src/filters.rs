@@ -1,145 +1,110 @@
-use core::fmt;
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::ops::BitOr;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+use crate::{Object, Section, Segment};
+
 pub enum ItemFilter {
-    ManifoldFilter,
-    Object(ObjectFilter),
-    Segment(SegmentID, ObjectFilter),
-    Section(SectionID, ObjectFilter),
+    Manifold,
+    Object(Box<dyn Fn(&Object) -> bool>),
+    Segment(Box<dyn Fn(&Object, &Segment) -> bool>),
+    Section(Box<dyn Fn(&Object, &Section) -> bool>),
 }
 
-impl ItemFilter {
-    pub fn object_filter(self) -> Option<ObjectFilter> {
-        match self {
-            ItemFilter::Object(f) | ItemFilter::Segment(_, f) | ItemFilter::Section(_, f) => {
-                Some(f)
+pub struct Filter {
+    pub(crate) items: Vec<ItemFilter>,
+}
+
+impl Filter {
+    pub fn matches_manifold(&self) -> bool {
+        self.items.iter().any(|f| matches!(f, ItemFilter::Manifold))
+    }
+
+    pub fn matches_object(&self, object: &Object) -> bool {
+        self.items.iter().any(|f| {
+            if let ItemFilter::Object(f) = f {
+                f(object)
+            } else {
+                false
             }
-            ItemFilter::ManifoldFilter => None,
+        })
+    }
+
+    pub fn is_segment_filter(&self) -> bool {
+        self.items
+            .iter()
+            .any(|f| matches!(f, ItemFilter::Segment(_)))
+    }
+    pub fn matches_segment(&self, segment: &Segment, object: &Object) -> bool {
+        self.items.iter().any(|f| {
+            if let ItemFilter::Segment(f) = f {
+                f(object, segment)
+            } else {
+                false
+            }
+        })
+    }
+
+    pub fn is_section_filter(&self) -> bool {
+        self.items
+            .iter()
+            .any(|f| matches!(f, ItemFilter::Section(_)))
+    }
+    pub fn matches_section(&self, section: &Section, object: &Object) -> bool {
+        self.items.iter().any(|f| {
+            if let ItemFilter::Section(f) = f {
+                f(object, section)
+            } else {
+                false
+            }
+        })
+    }
+
+    pub fn manifold() -> Self {
+        Filter {
+            items: vec![ItemFilter::Manifold],
         }
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct ObjectFilter {
-    /// A mask to ignore filters on OS ABIs or elf types.
-    pub mask: ObjectMask,
-    /// OS ABI
-    pub os_abi: u8,
-    /// Elf type
-    pub elf_type: u16,
-}
-
-/// A mask to filter matching objects.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ObjectMask {
-    /// Accept only objects matching exactly the OS ABI and elf type.
-    Strict,
-    /// Accept any object matching the elf type.
-    ElfType,
-    /// Accept any object matching the OS abi.
-    OsAbi,
-    /// Accept any object.
-    Any,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct SegmentID {
-    /// Segment type, correspond to ph_type.
-    pub tag: u32,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct SectionID {
-    /// Section type, correspond to sh_type.
-    pub tag: u32,
-}
-
-// ———————————————————————————————— Helpers ————————————————————————————————— //
-
-pub fn segment(segment_type: u32) -> SegmentID {
-    segment_type.into()
-}
-
-pub fn section(section_type: u32) -> SectionID {
-    section_type.into()
-}
-
-impl From<u32> for SegmentID {
-    fn from(segment_type: u32) -> Self {
-        Self { tag: segment_type }
-    }
-}
-
-impl From<u32> for SectionID {
-    fn from(section_type: u32) -> Self {
-        Self { tag: section_type }
-    }
-}
-
-impl From<ObjectFilter> for ItemFilter {
-    fn from(object: ObjectFilter) -> Self {
-        ItemFilter::Object(object)
-    }
-}
-
-impl From<SegmentID> for ItemFilter {
-    fn from(segment: SegmentID) -> Self {
-        ItemFilter::Segment(segment, ObjectFilter::any())
-    }
-}
-
-impl From<SectionID> for ItemFilter {
-    fn from(section: SectionID) -> Self {
-        ItemFilter::Section(section, ObjectFilter::any())
-    }
-}
-
-impl ObjectFilter {
-    pub fn any() -> Self {
-        Self {
-            mask: ObjectMask::Any,
-            os_abi: 0,
-            elf_type: 0,
+    pub fn object<F: Fn(&Object) -> bool + 'static>(pred: F) -> Self {
+        Filter {
+            items: vec![ItemFilter::Object(Box::new(pred))],
         }
     }
-}
-
-// ———————————————————————————————— Display ————————————————————————————————— //
-
-impl fmt::Debug for ItemFilter {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ManifoldFilter => write!(f, "[manifold]"),
-            Self::Object(obj) => write!(f, "[{obj:?}]"),
-            Self::Segment(seg, obj) => write!(f, "[{seg:?}, {obj:?}]"),
-            Self::Section(sec, obj) => write!(f, "[{sec:?}, {obj:?}]"),
+    pub fn segment<F: Fn(&Object, &Segment) -> bool + 'static>(pred: F) -> Self {
+        Filter {
+            items: vec![ItemFilter::Segment(Box::new(pred))],
         }
     }
-}
-
-impl fmt::Debug for ObjectFilter {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.mask {
-            ObjectMask::Strict => write!(
-                f,
-                "Object(abi: 0x{:x}, type: 0x{:x})",
-                self.os_abi, self.elf_type
-            ),
-            ObjectMask::ElfType => write!(f, "Object(type: 0x{:x})", self.elf_type),
-            ObjectMask::OsAbi => write!(f, "Object(abi: 0x{:x})", self.os_abi),
-            ObjectMask::Any => write!(f, "Object(any)"),
+    pub fn section<F: Fn(&Object, &Section) -> bool + 'static>(pred: F) -> Self {
+        Filter {
+            items: vec![ItemFilter::Section(Box::new(pred))],
         }
     }
-}
 
-impl fmt::Debug for SegmentID {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Segment(0x{:x})", self.tag)
+    pub fn any_object() -> Self {
+        Self::object(|_| true)
+    }
+    pub fn any_segment() -> Self {
+        Self::segment(|_, _| true)
+    }
+    pub fn any_section() -> Self {
+        Self::section(|_, _| true)
+    }
+
+    pub fn segment_type(tag: u32) -> Filter {
+        Self::segment(move |_, s| s.tag == tag)
+    }
+    pub fn section_type(tag: u32) -> Filter {
+        Self::section(move |_, s| s.tag == tag)
     }
 }
 
-impl fmt::Debug for SectionID {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Section(0x{:x})", self.tag)
+impl BitOr for Filter {
+    type Output = Self;
+
+    fn bitor(mut self, mut rhs: Self) -> Self::Output {
+        self.items.append(&mut rhs.items);
+        self
     }
 }

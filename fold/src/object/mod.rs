@@ -13,7 +13,6 @@ use crate::elf::{cst, sym_bindings, ElfHeader, ElfItemIterator, ProgramHeader, S
 use crate::error::FoldError;
 use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
-use crate::filters::ObjectFilter;
 use crate::manifold::Manifold;
 use crate::share_map::ShareMap;
 use crate::{Section, SymbolTableSection};
@@ -98,17 +97,6 @@ impl Object {
         }
 
         Ok(())
-    }
-
-    pub(crate) fn matches(&self, filter: ObjectFilter) -> bool {
-        match filter.mask {
-            crate::filters::ObjectMask::Strict => {
-                filter.elf_type == self.elf_type && filter.os_abi == self.os_abi
-            }
-            crate::filters::ObjectMask::ElfType => filter.elf_type == self.elf_type,
-            crate::filters::ObjectMask::OsAbi => filter.os_abi == self.os_abi,
-            crate::filters::ObjectMask::Any => true,
-        }
     }
 
     pub fn raw_slice(&self, offset: usize, len: usize) -> &[u8] {
