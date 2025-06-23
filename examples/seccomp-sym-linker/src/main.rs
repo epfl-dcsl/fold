@@ -20,7 +20,7 @@ fn entry(env: Env) -> ! {
     fold::default_chain("seccomp-sym-linker", env)
         .front()
         .register("syscall collect", SysCollect, Filter::any_object())
-        .select("fini array")
+        .select("start")
         .before()
         .register("syscall restriction", Seccomp, Filter::manifold())
         .run();
