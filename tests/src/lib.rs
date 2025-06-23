@@ -56,14 +56,6 @@ mod tests {
     }
 
     #[test]
-    fn hello_init_array() {
-        let output = Command::new("../samples/hello-init-array")
-            .output()
-            .expect("Failed to execute process");
-        assert!(String::from_utf8_lossy(&output.stdout).contains("hi there"));
-    }
-
-    #[test]
     fn hello_math() {
         let output = Command::new("../samples/hello-math")
             .output()

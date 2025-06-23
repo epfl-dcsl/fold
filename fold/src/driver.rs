@@ -4,7 +4,6 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 use goblin::elf::program_header::PT_LOAD;
-use goblin::elf::section_header::{SHT_FINI_ARRAY, SHT_INIT_ARRAY};
 
 use crate::arena::Handle;
 use crate::cli::Config;
@@ -13,7 +12,6 @@ use crate::filters::Filter;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::sysv::collector::{SysvRemappingCollector, SYSV_COLLECTOR_SEARCH_PATHS_KEY};
-use crate::sysv::init_array::SysvInitArray;
 use crate::sysv::loader::SysvLoader;
 use crate::sysv::protect::SysvProtect;
 use crate::sysv::relocation::SysvReloc;
@@ -89,16 +87,6 @@ pub fn default_chain(loader_name: &str, env: Env) -> Fold {
             Filter::any_object(), // TODO: match only elf
         )
         .register("protect", SysvProtect, Filter::segment_type(PT_LOAD))
-        .register(
-            "init array",
-            SysvInitArray,
-            Filter::section_type(SHT_INIT_ARRAY),
-        )
-        .register(
-            "fini array",
-            SysvInitArray,
-            Filter::section_type(SHT_FINI_ARRAY),
-        )
         .register("start", SysvStart, Filter::any_object())
 }
 

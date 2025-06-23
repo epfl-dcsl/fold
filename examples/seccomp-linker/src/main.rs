@@ -16,8 +16,8 @@ fn entry(env: Env) -> ! {
     init_logging(log::LevelFilter::Trace);
 
     fold::default_chain("seccomp-linker", env)
-        .select("fini array")
-        .after()
+        .select("start")
+        .before()
         .register("syscall restriction", Seccomp, Filter::manifold())
         .run();
 

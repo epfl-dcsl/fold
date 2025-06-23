@@ -17,10 +17,6 @@ programs:
 	nasm -f elf64 hello-mov-pie.asm
 	ld -pie --dynamic-linker {{linker}} hello-mov-pie.o -o hello-mov-pie
 
-	# hello-init-array
-	nasm -f elf64 hello-init-array.asm
-	ld -pie --dynamic-linker {{linker}} hello-init-array.o -o hello-init-array
-
 	# hello-dl
 	nasm -f elf64 hello-dl.asm
 	nasm -f elf64 msg.asm
