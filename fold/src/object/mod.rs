@@ -13,7 +13,6 @@ use crate::elf::{cst, sym_bindings, ElfHeader, ElfItemIterator, ProgramHeader, S
 use crate::error::FoldError;
 use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
-use crate::filters::ObjectFilter;
 use crate::manifold::Manifold;
 use crate::share_map::ShareMap;
 use crate::{Section, SymbolTableSection};
@@ -24,33 +23,33 @@ pub mod section;
 
 /// An elf object.
 pub struct Object {
-    path: CString,
-    mapping: Arc<Mapping>,
+    pub path: CString,
+    pub mapping: Arc<Mapping>,
 
-    pub(crate) sections: Vec<Handle<Section>>,
-    pub(crate) segments: Vec<Handle<Segment>>,
-    pub(crate) dependencies: Vec<Handle<Object>>,
+    pub sections: Vec<Handle<Section>>,
+    pub segments: Vec<Handle<Segment>>,
+    pub dependencies: Vec<Handle<Object>>,
 
     /// OS ABI
-    os_abi: u8,
+    pub os_abi: u8,
     /// Elf type
-    elf_type: u16,
+    pub elf_type: u16,
     /// ISA
     pub e_machine: u16,
     /// Offset of the section header table.
-    e_shoff: usize,
+    pub e_shoff: usize,
     /// Size of the entries in the section header table.
-    e_shentsize: u16,
+    pub e_shentsize: u16,
     /// Number of entries in the section header table.
-    pub(crate) e_shnum: u16,
+    pub e_shnum: u16,
     /// Offset of the program header table.
-    e_phoff: usize,
+    pub e_phoff: usize,
     /// Size of entries in the program header table.
-    e_phentsize: u16,
+    pub e_phentsize: u16,
     /// Number of entries in the program header table.
-    pub(crate) e_phnum: u16,
+    pub e_phnum: u16,
     /// Index of the section header string table
-    e_shstrndx: u16,
+    pub e_shstrndx: u16,
 
     pub shared: ShareMap,
 }
@@ -103,17 +102,6 @@ impl Object {
         Ok(())
     }
 
-    pub(crate) fn matches(&self, filter: ObjectFilter) -> bool {
-        match filter.mask {
-            crate::filters::ObjectMask::Strict => {
-                filter.elf_type == self.elf_type && filter.os_abi == self.os_abi
-            }
-            crate::filters::ObjectMask::ElfType => filter.elf_type == self.elf_type,
-            crate::filters::ObjectMask::OsAbi => filter.os_abi == self.os_abi,
-            crate::filters::ObjectMask::Any => true,
-        }
-    }
-
     pub fn raw_slice(&self, offset: usize, len: usize) -> &[u8] {
         &self.mapping.bytes()[offset..(offset + len)]
     }
@@ -133,11 +121,11 @@ impl Object {
         self.mapping.bytes()
     }
 
-    pub fn section_headers(&self) -> ElfItemIterator<SectionHeader> {
+    pub fn section_headers(&'_ self) -> ElfItemIterator<'_, SectionHeader> {
         ElfItemIterator::new(self.raw(), self.e_shoff, self.e_shnum, self.e_shentsize)
     }
 
-    pub fn program_headers(&self) -> ElfItemIterator<ProgramHeader> {
+    pub fn program_headers(&'_ self) -> ElfItemIterator<'_, ProgramHeader> {
         ElfItemIterator::new(self.raw(), self.e_phoff, self.e_phnum, self.e_phentsize)
     }
 
@@ -157,7 +145,7 @@ impl Object {
             .filter_map(|s| symbol_table_mapper(s).ok())
         {
             // List all entries with matching symbol name
-            let matching_entries: Vec<(&Sym, &CStr)> = section
+            let matching_entries: Vec<(Sym, &CStr)> = section
                 .symbol_iter(manifold)
                 .filter_map(Result::ok)
                 .filter(|(_, name)| *name == symbol)
@@ -165,7 +153,7 @@ impl Object {
 
             // Find an entry with LOCAL or GLOBAL visibility. If none match, use the first entry found (thus including
             // WEAK entries as well). This implements priority between LOCAL/GLOBAL and WEAK.
-            let entry: Option<(&Sym, &CStr)> = matching_entries
+            let entry: Option<(Sym, &CStr)> = matching_entries
                 .iter()
                 .find(|(sym, _)| {
                     let binding = sym_bindings(sym);
@@ -179,7 +167,6 @@ impl Object {
             // If an non-weak entry is found, return it.
             if let Some((sym, _)) = entry {
                 if sym.st_shndx != SHN_UNDEF as u16 {
-
                     // Section containing the symbol
                     let container = manifold
                         .sections
@@ -187,15 +174,26 @@ impl Object {
                         .expect("Symbol not contained in a section");
 
                     if sym.st_info & STB_WEAK == 0 {
-                        return Ok((container, *sym));
+                        return Ok((container, sym));
                     }
 
-                    weak_result = Ok((container, *sym))
+                    weak_result = Ok((container, sym))
                 }
             }
         }
 
         weak_result
+    }
+
+    pub fn symbols<'a>(
+        &'a self,
+        manifold: &'a Manifold,
+    ) -> impl Iterator<Item = Result<(goblin::elf64::sym::Sym, &'a CStr), FoldError>> + 'a {
+        self.sections
+            .iter()
+            .map(|h: &'a Handle<Section>| &manifold.sections[*h])
+            .filter_map(|s: &'a Section| s.as_symbol_table().ok())
+            .flat_map(move |s: SymbolTableSection<'a>| s.symbol_iter(manifold))
     }
 
     /// Find the given symbol in one of the [`SHT_STRTAB`](goblin::elf::section_header::SHT_STRTAB) section of this object.

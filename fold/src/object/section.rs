@@ -1,3 +1,4 @@
+use alloc::ffi::CString;
 use alloc::sync::Arc;
 use core::ffi::CStr;
 
@@ -24,7 +25,7 @@ macro_rules! derive_sectiont {
 macro_rules! as_section {
     ($fn:ident,$struc:tt,$tag:expr,$name:literal) => {
         #[doc = concat!("Creates a wrapper around this section to use is as a ", $name, " section.")]
-        pub fn $fn(&self) -> Result<$struc, FoldError> {
+        pub fn $fn(&'_ self) -> Result<$struc<'_>, FoldError> {
             if self.tag == $tag {
                 Ok($struc { section: self })
             } else {
@@ -45,9 +46,10 @@ pub struct Section {
     pub mapping: Arc<Mapping>,
     /// The object containing this section.
     pub obj: Handle<Object>,
+    /// Name of the section
+    pub name: CString,
     /// Offset to the name of the section in the object's .shstrtab section.
-    /// TODO: store name directly.
-    pub name: u32,
+    pub name_idx: u32,
     /// The type of the section (sh_type).
     pub tag: u32,
     /// Section flags.
@@ -61,8 +63,9 @@ pub struct Section {
     /// Required alignment.
     pub alig: usize,
     /// Link to an associated section.
-    /// TODO: store a handle instead
-    pub link: u32,
+    pub link_section: Option<Handle<Section>>,
+    /// Index of the linked section.
+    pub link_idk: u32,
     /// Extra information about the section.
     pub info: u32,
     /// Size of the elements contained in the section, if applicable.
@@ -86,14 +89,16 @@ impl Section {
         Self {
             mapping: mapping.clone(),
             obj: obj_idx,
-            name: header.sh_name,
+            name: CString::default(),
+            name_idx: header.sh_name,
             tag: header.sh_type,
             flags: header.sh_flags as usize,
             addr: header.sh_addr as usize,
             offset: header.sh_offset as usize,
             size: header.sh_size as usize,
             alig: header.sh_addralign as usize,
-            link: header.sh_link,
+            link_section: None,
+            link_idk: header.sh_link,
             info: header.sh_info,
             entity_size: header.sh_entsize as usize,
         }
@@ -117,6 +122,10 @@ impl Section {
         SHT_SYMTAB,
         "dynamic symbol table"
     );
+
+    pub fn rename(&mut self, name: CString) {
+        self.name = name;
+    }
 }
 
 // ———————————————————————————————— SectionTrait ————————————————————————————————— //
@@ -127,20 +136,15 @@ pub trait SectionT {
 
     /// Return the section which index is stored in `link`, fetching it from the Manifold.
     fn get_linked_section<'a>(&'_ self, manifold: &'a Manifold) -> Result<&'a Section, FoldError> {
-        let obj = manifold.objects.get(self.section().obj).unwrap();
-
         manifold
             .sections
-            .get(obj.sections[self.section().link as usize])
+            .get(self.section().link_section.unwrap())
             .ok_or(FoldError::MissingLinkedSection)
     }
 
     /// Return the name of the section stored in the `.shstrtab` section.
-    fn get_display_name<'a>(&self, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
-        let obj = manifold.objects.get(self.section().obj).unwrap();
-        manifold.sections[obj.sections[obj.e_shstrndx as usize]]
-            .as_string_table()?
-            .get_symbol(self.section().name as usize)
+    fn get_display_name(&self) -> &CStr {
+        &self.section().name
     }
 }
 
@@ -184,7 +188,11 @@ impl<'a> SymbolTableSection<'a> {
     }
 
     /// Return the symbol represented by the `DYNSYM` entry at the given index.
-    pub fn get_symbol_name(&self, index: usize, manifold: &'a Manifold) -> Result<&'a CStr, FoldError> {
+    pub fn get_symbol_name(
+        &self,
+        index: usize,
+        manifold: &'a Manifold,
+    ) -> Result<&'a CStr, FoldError> {
         let entry = self.get_entry(index)?;
 
         self.section
@@ -210,7 +218,7 @@ impl<'a> SymbolTableSection<'a> {
     }
 
     /// Create an iterator over all the `DYNSYM` entries of the section.
-    pub fn entry_iter(&self) -> impl Iterator<Item = &goblin::elf::sym::sym64::Sym> {
+    pub fn entry_iter(&self) -> impl Iterator<Item = &'a goblin::elf::sym::sym64::Sym> + 'a {
         ElfItemIterator::<goblin::elf::sym::sym64::Sym>::from_section(self.section)
     }
 
@@ -218,13 +226,14 @@ impl<'a> SymbolTableSection<'a> {
     pub fn symbol_iter(
         &self,
         manifold: &'a Manifold,
-    ) -> impl Iterator<Item = Result<(&goblin::elf::sym::sym64::Sym, &CStr), FoldError>> {
+    ) -> impl Iterator<Item = Result<(goblin::elf::sym::sym64::Sym, &'a CStr), FoldError>> + 'a
+    {
         self.entry_iter().map(|sym_entry| {
             self.section
                 .get_linked_section(manifold)?
                 .as_string_table()?
                 .get_symbol(sym_entry.st_name as usize)
-                .map(|symbol| (sym_entry, symbol))
+                .map(|symbol| (*sym_entry, symbol))
         })
     }
 }

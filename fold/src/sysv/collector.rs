@@ -64,8 +64,10 @@ impl Debug for SysvCollectorEntry {
     }
 }
 
+pub const SYSV_COLLECTOR_SEARCH_PATHS_KEY: ShareMapKey<Vec<String>> =
+    ShareMapKey::new("sysv_collector_search_paths");
 pub const SYSV_COLLECTOR_RESULT_KEY: ShareMapKey<Vec<SysvCollectorEntry>> =
-    ShareMapKey::new("sysv_collector");
+    ShareMapKey::new("sysv_collector_result");
 
 pub struct SysvCollector;
 
@@ -102,7 +104,9 @@ impl Module for SysvCollector {
         // Loads all the newly found dependenciesadd_elf
         for filename in new_deps {
             let path_lib = manifold
-                .search_paths
+                .shared
+                .get(SYSV_COLLECTOR_SEARCH_PATHS_KEY)
+                .expect("Search paths not set")
                 .iter()
                 .map(|p| format!("{}/{}", p, filename.to_str().unwrap()))
                 .find(|p| fs::stat(p.as_str()).is_ok())
@@ -205,7 +209,9 @@ impl Module for SysvRemappingCollector {
         // Loads all the newly found dependencies
         for filename in new_deps {
             let path_lib = manifold
-                .search_paths
+                .shared
+                .get(SYSV_COLLECTOR_SEARCH_PATHS_KEY)
+                .expect("Search paths not set")
                 .iter()
                 .map(|p| format!("{}/{}", p, filename.to_str().unwrap()))
                 .find(|p| fs::stat(p.as_str()).is_ok())

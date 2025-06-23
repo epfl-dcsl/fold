@@ -1,7 +1,7 @@
 use alloc::borrow::ToOwned;
 use alloc::ffi::CString;
-use alloc::string::String;
 use alloc::sync::Arc;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::ffi::CStr;
 use core::ops::{Index, IndexMut};
@@ -25,8 +25,6 @@ pub struct Manifold {
     pub sections: Arena<Section>,
     pub segments: Arena<Segment>,
     pub shared: ShareMap,
-    pub regions: Arena<()>,
-    pub search_paths: Vec<String>,
     pub env: Env,
 }
 
@@ -36,9 +34,7 @@ impl Manifold {
             objects: Arena::new(),
             sections: Arena::new(),
             segments: Arena::new(),
-            regions: Arena::new(),
             shared: ShareMap::new(),
-            search_paths: Vec::new(),
             env,
         }
     }
@@ -63,16 +59,36 @@ impl Manifold {
             sections.push(idx);
         }
 
+        // Rename sections and link them
+        let mut optional = vec![];
+        let shstr = &self.sections[sections[obj.e_shstrndx as usize]];
+        for hdx in sections.iter() {
+            let section = &self[*hdx];
+            let name = shstr
+                .as_string_table()
+                .map(|e| {
+                    e.get_symbol(section.name_idx as usize)
+                        .unwrap_or_default()
+                        .to_owned()
+                })
+                .unwrap_or_default();
+
+            let link = sections.get(section.link_idk as usize).copied();
+
+            optional.push((*hdx, name, link));
+        }
+
+        for (hdx, name, link) in optional {
+            self[hdx].name = name;
+            self[hdx].link_section = link;
+        }
+
         // Initialize segment and section indexes.
         let obj = &mut self.objects[obj_idx];
         obj.segments = segments;
         obj.sections = sections;
 
         obj_idx
-    }
-
-    pub fn add_search_paths(&mut self, paths: Vec<String>) {
-        self.search_paths.extend(paths);
     }
 
     /// Find the given symbol across the different loaded objects. Symbols with NDX set to

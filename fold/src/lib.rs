@@ -6,17 +6,17 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
-mod allocator;
+pub mod allocator;
 pub mod arena;
-mod cli;
-mod driver;
+pub mod cli;
+pub mod driver;
 pub mod elf;
-mod env;
+pub mod env;
 pub mod error;
-mod exit;
-mod file;
+pub mod exit;
+pub mod file;
 pub mod filters;
-mod logging;
+pub mod logging;
 pub mod manifold;
 pub mod module;
 pub mod object;
@@ -24,7 +24,7 @@ pub mod share_map;
 pub mod sysv;
 
 pub use arena::Handle;
-pub use driver::{new, default_chain};
+pub use driver::{default_chain, new};
 pub use env::Env;
 pub use exit::{exit, exit_error, Exit};
 pub use logging::init as init_logging;

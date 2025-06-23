@@ -1,41 +1,55 @@
-target := "x86_64-unknown-linux-none.json"
+target := "fold/x86_64-unknown-linux-none.json"
 
 # Print list of commands
 help:
 	@just --list --unsorted
 
 run:
-	cargo +nightly run --target {{target}} -Z build-std=core,alloc -- hello-loader
+	cargo +nightly -p fold run --target {{target}} -Z build-std=core,alloc -- hello-loader
 
 build:
-	cargo +nightly build --target {{target}} -Z build-std=core,alloc
+	cargo +nightly build -p fold --target {{target}} -Z build-std=core,alloc
 	@just --justfile samples/justfile
+	@just --justfile examples/justfile
 
 
 	@echo 'ARCH=x86_64' > musl/config.mak
 	@sh patch-musl.sh
 	@make -C musl
 
+test:
+	@just build
+	cargo test -p tests
+
 sqlite-build:
 	@just --justfile sqlite-build/justfile build
 
 release:
-	cargo +nightly build --release --target {{target}} -Z build-std=core,alloc
+	cargo +nightly build -p fold --release --target {{target}} -Z build-std=core,alloc
 
 check:
-	cargo +nightly check --target {{target}} -Z build-std=core,alloc
+	cargo +nightly check -p fold --target {{target}} -Z build-std=core,alloc
+	cargo check -p tests
 	
 clippy:
-	cargo +nightly clippy --target {{target}} -Z build-std=core,alloc
+	cargo +nightly clippy -p fold --target {{target}} -Z build-std=core,alloc
+	cargo clippy -p tests
 
 clippy-fix:
-	cargo +nightly clippy --target {{target}} -Z build-std=core,alloc --fix --allow-dirty
+	cargo +nightly clippy -p fold --target {{target}} -Z build-std=core,alloc --fix --allow-dirty
+	cargo clippy -p tests --fix --allow-dirty
 
 fmt:
-	cargo +nightly fmt
+	cargo +nightly fmt -p fold
+	cargo fmt -p tests
+
+report:
+	typst compile report/report.typ -f pdf --root ..
 
 doc:
-	cargo +nightly doc --target {{target}} -Z build-std=core,alloc --open
+	@just report
+	cargo +nightly doc -p fold --target {{target}} -Z build-std=core,alloc --open
+	cargo doc -p tests --open
 
 clean:
 	cargo clean

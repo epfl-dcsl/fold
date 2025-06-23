@@ -13,3 +13,5 @@ hello-math
 seccomp-allowed
 seccomp-forbidden
 hello-riscv
+seccomp-sym-hello-c
+trampoline-print
