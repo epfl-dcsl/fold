@@ -20,7 +20,6 @@ use crate::{Handle, Object, Section};
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {
         let value = $value;
-        // log::trace!("Relocate {:x?} to 0x{:x?}", $addr, value);
         unsafe { core::ptr::write_unaligned($addr as *mut $type, value as $type) };
     };
 }
@@ -38,6 +37,7 @@ impl SysvReloc {
     }
 }
 
+/// Return dependences of object and its dependencies
 fn add_deps(obj: &Object, manifold: &Manifold) -> Vec<Handle<Object>> {
     let mut queue = Vec::new();
     for dep in obj.dependencies.iter() {
