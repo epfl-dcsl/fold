@@ -3,7 +3,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use fold::module::Module;
-use syscalls::{syscall, Sysno};
+use syscalls::{Sysno, syscall};
 
 use crate::syscall_collect::SECCOMP_SYSCALL_FILTER;
 
@@ -23,7 +23,7 @@ const BPF_RET: u16 = 0x06;
 const BPF_K: u16 = 0x00;
 
 #[repr(C)]
-struct sock_filter {
+struct SockFilter {
     code: u16,
     jt: u8,
     jf: u8,
@@ -31,9 +31,9 @@ struct sock_filter {
 }
 
 #[repr(C)]
-struct sock_fprog {
-    len: u16,                 // Number of BPF instructions
-    filter: *mut sock_filter, // Pointer to array of BPF instructions
+struct SockFprog {
+    len: u16,                // Number of BPF instructions
+    filter: *mut SockFilter, // Pointer to array of BPF instructions
 }
 
 #[derive(Debug)]
@@ -46,11 +46,11 @@ impl From<SeccompError> for Box<dyn core::fmt::Debug> {
 }
 
 // Generate a filter that allows only the listed syscalls
-fn build_seccomp_filter(allowed_syscalls: &[u32]) -> Vec<sock_filter> {
+fn build_seccomp_filter(allowed_syscalls: &[u32]) -> Vec<SockFilter> {
     let mut filters = Vec::new();
 
     // 1. Load syscall number into accumulator (A)
-    filters.push(sock_filter {
+    filters.push(SockFilter {
         code: BPF_LD | BPF_W | BPF_ABS,
         jt: 0,
         jf: 0,
@@ -59,7 +59,7 @@ fn build_seccomp_filter(allowed_syscalls: &[u32]) -> Vec<sock_filter> {
 
     // 2. Add a JEQ jump for each allowed syscall
     for &num in allowed_syscalls {
-        filters.push(sock_filter {
+        filters.push(SockFilter {
             code: BPF_JMP | BPF_JEQ | BPF_K,
             jt: 0,
             jf: 1, // if not match, skip next RET ALLOW
@@ -67,7 +67,7 @@ fn build_seccomp_filter(allowed_syscalls: &[u32]) -> Vec<sock_filter> {
         });
 
         // RET ALLOW (if syscall matched)
-        filters.push(sock_filter {
+        filters.push(SockFilter {
             code: BPF_RET | BPF_K,
             jt: 0,
             jf: 0,
@@ -76,7 +76,7 @@ fn build_seccomp_filter(allowed_syscalls: &[u32]) -> Vec<sock_filter> {
     }
 
     // 3. Default action: kill syscall
-    filters.push(sock_filter {
+    filters.push(SockFilter {
         code: BPF_RET | BPF_K,
         jt: 0,
         jf: 0,
@@ -108,7 +108,7 @@ impl Module for Seccomp {
         // Combine filters for write and exit
         let mut filters = build_seccomp_filter(syscall_filter.as_slice());
 
-        let mut prog = sock_fprog {
+        let mut prog = SockFprog {
             len: filters.len() as u16,
             filter: filters.as_mut_ptr(),
         };

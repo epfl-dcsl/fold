@@ -4,8 +4,8 @@ target := "fold/x86_64-unknown-linux-none.json"
 help:
 	@just --list --unsorted
 
-run:
-	cargo +nightly -p fold run --target {{target}} -Z build-std=core,alloc -- hello-loader
+run TARGET:
+	cargo +nightly run -p fold --target {{target}} -Z build-std=core,alloc -- {{TARGET}}
 
 build:
 	cargo +nightly build -p fold --target {{target}} -Z build-std=core,alloc
