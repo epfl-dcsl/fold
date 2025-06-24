@@ -3,8 +3,11 @@
 #![allow(dead_code)]
 
 extern crate alloc;
+extern crate macros;
 
 use core::panic::PanicInfo;
+
+pub use macros::chain;
 
 pub mod allocator;
 pub mod arena;

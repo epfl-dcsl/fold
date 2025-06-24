@@ -6,20 +6,12 @@ extern crate fold;
 
 mod seccomp;
 
-use fold::filters::Filter;
-use fold::{Env, Exit, exit, init_logging};
+use fold::{driver::Fold, filters::Filter};
 use seccomp::Seccomp;
 
-fold::entry!(entry);
-
-fn entry(env: Env) -> ! {
-    init_logging(log::LevelFilter::Trace);
-
-    fold::default_chain("seccomp-linker", env)
-        .select("start")
+#[fold::chain]
+fn seccomp_chain(fold: Fold) -> Fold {
+    fold.select("start")
         .before()
         .register("syscall restriction", Seccomp, Filter::manifold())
-        .run();
-
-    exit(Exit::Success);
 }
