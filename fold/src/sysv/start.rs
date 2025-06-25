@@ -20,6 +20,7 @@ impl Module for SysvStart {
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
         let obj = &manifold.objects[obj];
+
         let offset = obj
             .shared
             .get(SYSV_LOADER_BASE_ADDR)
@@ -31,7 +32,7 @@ impl Module for SysvStart {
 
         unsafe {
             log::info!("Jumping at 0x{entry:x}...");
-            jmp(entry as *const u8, stack.as_ptr(), stack.len() as u64);
+            jmp(entry as *const u8, &stack);
         }
     }
 }
@@ -40,28 +41,26 @@ impl Module for SysvStart {
 
 /// The actual jump tot he program entry
 #[inline(never)]
-unsafe fn jmp(entry_point: *const u8, stack: *const u64, nb_items: u64) -> ! {
+unsafe fn jmp(entry_point: *const u8, stack: &[u64]) -> ! {
     asm!(
-        // allocate (qword_count * 8) bytes
-        "mov {tmp}, {qword_count}",
-        "sal {tmp}, 3",
-        "sub rsp, {tmp}",
-
         "2:",
+        // loop if i isn't zero, break otherwise
+        "test {qword_count}, {qword_count}",
+        "jz 3f",
         // start at i = (n-1)
         "sub {qword_count}, 1",
         // copy qwords to the stack
         "mov {tmp}, QWORD PTR [{stack_contents}+{qword_count}*8]",
-        "mov QWORD PTR [rsp+{qword_count}*8], {tmp}",
-        // loop if i isn't zero, break otherwise
-        "test {qword_count}, {qword_count}",
-        "jnz 2b",
+        "push {tmp}",
+        // loop back
+        "jump 2b"
 
+        "3:",
         "jmp {entry_point}",
 
         entry_point = in(reg) entry_point,
-        stack_contents = in(reg) stack,
-        qword_count = in(reg) nb_items,
+        stack_contents = in(reg) stack.as_ptr(),
+        qword_count = in(reg) stack.len(),
         tmp = out(reg) _,
     );
 
