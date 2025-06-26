@@ -1,4 +1,5 @@
-#import "@preview/fletcher:0.5.8" as fletcher: diagram, node, edge
+#import "@preview/fletcher:0.5.8" as fletcher: diagram, edge, node
+#import fletcher.shapes: brace, bracket
 #import "code.typ": code
 
 #align(center + top)[
@@ -68,30 +69,208 @@ An interesting observation we can make on the design of Linux is that all proces
 
 However, existing loaders like GNU's or Musl's are very complex pieces of codes, intertwined with their respective standard library, making them hard to tweak. For example, when launching a process with GNU's loader, it first starts by linking itself with `libc`, and vice-versa as they both depend on each other, before finally linking the actual executable.
 
-= ELF
+= Background
 
-Before diving into Fold's inner working, let's first take a quick look at what an executable file looks like. ELF (executable and linkable format)@elf is the format used for all executable files in a Linux environments. It is divided into four main parts: ELF header, program header table (PHT), content and section header table (SHT). The content itself is composed of segments and section, each having some extra metadata in, respectively, the program header table and the section header table. It is important to note that segments and sections are two different "views" of the same content; a segment can overlap with a section and vice versa, but a segment cannot overlap with other segments. Segment carry information on the mapping of the ELF content in the virtual space and its protection, where section carry information on what the content is and how to interpret it (code, string table, `plt`...).
+== ELF
 
-== ELF header
+Before diving into Fold's inner working, let's first take a quick look at what an executable file looks like. ELF (executable and linkable format)@elf is the format used for all executable files in a Linux environments. It is divided into four main parts: ELF header, program header table (PHT), content and section header table (SHT). The content itself is composed of segments and section, each having some extra metadata in, respectively, the program header table and the section header table. As depicted in #ref(<fig-elf-sctructure>), it is important to note that segments and sections are two different "views" of the same content; a segment can overlap with a section and vice versa, but a segment cannot overlap with other segments. Segment carry information on the mapping of the ELF content in the virtual space and its protection, where section carry information on what the content is and how to interpret it (code, string table, `plt`...).
+
+#figure(
+  diagram(
+    node-stroke: .1em,
+    spacing: 0em,
+    node(enclose: ((0, 0), (0, 7)), (0, 0), inset: 2pt),
+
+    let w = 42mm,
+
+    node((0, 1), "ELF Header", name: "elf-header", width: w),
+    node((0, 2), "Program header table", name: "p-header", width: w),
+    node((0, 3), ".text", name: "test", width: w),
+    node((0, 4), ".rodata", name: "rodata", width: w),
+    node((0, 5), "...", name: "other", stroke: 0mm, width: w),
+    node((0, 6), ".data", name: "data", width: w),
+    node((0, 7), "Section header table", name: "s-header", width: w),
+
+    node(enclose: (<s-header>), shape: brace.with(
+      dir: left,
+      length: 100% - 1em,
+      sep: 10pt,
+      label: "Information on\npurpose of data",
+    )),
+
+
+    node(enclose: (<p-header>), shape: brace.with(
+      dir: right,
+      length: 100% - 1em,
+      sep: 10pt,
+      label: "Information on how\nto load segments",
+    )),
+
+    node(enclose: (<test>, <rodata>), shape: brace.with(
+      dir: right,
+      length: 100% - 1em,
+      sep: 10pt,
+      label: [Code segment $(R - E)$],
+    )),
+
+    node(enclose: (<other>, <data>), shape: brace.with(
+      dir: right,
+      length: 100% - 1em,
+      sep: 10pt,
+      label: [Data segment $(R W -)$],
+    )),
+  ),
+
+  caption: [ELF File Structure],
+)<fig-elf-sctructure>
+
+=== ELF header
 
 The ELF header contains a few entries characterizing the file, starting with 16 magic bytes to identify the file as an ELF, position of the headers in the file, their size, the ABI used, etc. Interestingly, the version number has stayed at 1 for 50 years, although many variations have been designed and used (while staying compatible with older loaders).
 
-== Segments<elf-segment>
+=== Segments<elf-segment>
 
 The segments of the file contain data about how it should be executed, like the code, text and data segments, as well as the path of the interpreter (dynamic loader) to use. The most interesting segments in that project are those of the `LOAD` type, meaning that they need to be copied in to the process' address space. Their entry in the PHT also indicates the protection flags that need to be put on that segment (`R` for `.text`, `RE` for code, etc.) and the size of the segment in memory, which may differ from the size in the file if the segments ends with a sequence of zeros --- in which case the dynamic loader needs to initialize the extra memory.
 
-== Sections<elf-section>
+=== Sections<elf-section>
 
 The sections describe how the file should be linked. Each entry in the table contains, among other things, a type, a name (or rather an index into a string table, see below), and a linked section.
 
 The most important sections are the relocation sections (`.rela.*`), symbol tables and string tables:
 - String tables (ST) contain all the string used in the file, for example for symbol names. The strings are null-terminated in the file. When a section references a string, it will contain the position of the string relative to the start of the string ST table section. The ST to index can be easily identified as it is the one linked in the SHT.
-- Symbol tables store the location of all symbols of the file. Symbols are used to identify functions, variable, and so on, when linking with dynamic librairies.
-- Relocations tells the linker how to rewrite the executable's code such that it can interact with dynamically loaded librairies. More detail on this in @sysv-reloc.
+- Symbol tables store the location of all symbols of the file. Symbols are used to identify functions, variable, and so on, when linking with dynamic libraries.
+- Relocations tells the linker how to rewrite the executable's code such that it can interact with dynamically loaded libraries. More detail on this in @sysv-reloc.
 
-= Fold Design
+== System V ABI
 
-The idea behind Fold's design is similar to assembly lines: an object called the "manifold" is ran through several successive "modules", each of them modifying the manifold. Modules can communicate between them though the manifold.
+OSDev wiki gives the following definition for System V ABI:
+
+#quote(attribution: [OSDev Wiki@osdev-wiki])[
+  The System V Application Binary Interface is a set of specifications that detail calling conventions, object file formats, executable file formats, dynamic linking semantics, and much more for systems that complies with the X/Open Common Application Environment Specification and the System V Interface Definition. It is today the standard ABI used by the major Unix operating systems such as Linux, the BSD systems, and many others. The Executable and Linkable Format (ELF) is part of the System V ABI.
+]
+
+The design discussed later in #ref(<elf-segment>) provides, among other things, a functional implementation of a loader that follow the System V ABI.
+
+== General flow
+
+Fold's linkers should fit inside the flow of ELF execution described in #ref(<exec-elf>). On execution request for an ELF file, the kernel open the file and looks for the path of the interpreter -- _the dynamic linker_ -- required by the ELF inside the `.interp` section. It creates the process for the future executable, loads the dynamic linker into it and call it. The dynamic linker will identify the ELF file to load from the `argc`, open it, then parse it to retrieves loading and linking information. Finally, it will proceed to all the operations required by System V ABI in order to prepare the executable to be executed.
+
+#figure(
+  diagram(
+    node-stroke: .1em,
+    spacing: 1.5em,
+    node((0, 0), name: "exec", stroke: 0em)[
+      ```c
+      execve("bin/ls")
+      ```
+    ],
+
+    edge("->", label-anchor: "east", label-sep: 0em)[
+      #text(fill: orange)[1) open file]
+    ],
+
+    node((0, 1), name: "elf")[
+      ELF file\
+      of `/bin/ls`
+    ],
+
+    edge(<elf>, "d", <interpr>, "->", label-anchor: "north", label-pos: (0, 130%))[
+      #text(fill: orange)[2) look for interpreter]
+    ],
+
+    let w = 40mm,
+    let i = 1,
+    let j = 0,
+
+    node((i, 1), enclose: ((i, j + 0), (i, j + 3)), align(top + left)[`/bin/ls`], name: "elf-structure"),
+    node((i, j + 0.75), "ELF Header", name: "elf-header", width: w),
+    node((i, j + 1.25), "...", stroke: 0mm, width: w),
+    node((i, j + 2), ".interp: \"ld.so\"", name: "interpr", width: w),
+    node((i, j + 2.4), "...", stroke: 0mm, width: w),
+    node((i, j + 3), "Section header table", name: "s-header", width: w),
+
+
+    edge(<interpr>, "r", <loader>, "->", label-anchor: "south", label-pos: (0, 110%), label-sep: -2em)[
+      #text(fill: orange)[3) call linker]
+    ],
+
+    i += 1,
+    node((i, 0), name: "loader")[Dynamic \ Linker],
+
+    edge(<loader.north>, "u,l", <elf-structure.north>, "->", shift: -5pt)[
+      #text(fill: orange)[4) read ELF]
+    ],
+
+    edge(<loader.north>, "u,r", <sysv-modules.north>, "->", shift: 5pt)[
+      #text(fill: orange)[5) begin link process]
+    ],
+
+    i += 1,
+    node((i, -1), enclose: ((i, 0), (i, 4)), name: "sysv-modules", stroke: (paint: blue, dash: "dashed")),
+    node((i, 0), width: w)[Loading segments],
+    edge("-->"),
+    node((i, 1), "...", stroke: 0mm, width: w),
+    edge("-->"),
+    node((i, 2), width: w)[Relocations],
+    edge("-->"),
+    node((i, 3), width: w, extrude: (0, 2))[Jump to entrypoint],
+  ),
+
+  caption: [Flow of process creation],
+)<exec-elf>
+
+= Fold Design<fold-desgin>
+
+The idea behind Fold's design is similar to assembly lines: an object called the "manifold" is ran through several successive "modules", each of them modifying the manifold and/or the virtual space. Modules can communicate between them though the manifold.
+
+
+#figure(
+  diagram(
+    node-stroke: .1em,
+    spacing: 1em,
+    let w = 40mm,
+    let i = 0,
+
+    node((i, 0.5), enclose: ((i, j + 0), (i, 4)), name: "manifold", align(top)[`Manifold`]),
+    node((i, 1), "ELF Objects", width: w),
+    node((i, 2), "Sections", width: w),
+    node((i, 3), "Segments", width: w),
+    node((i, 4), "Share memory", width: w),
+
+    edge(<manifold.east>, <modules.west>, "=>", shift: 1em),
+    edge(<manifold.east>, <modules.west>, "<=", shift: -1em),
+
+    i += 2,
+    node((i, 0.5), enclose: ((i, j + 0), (i, 4)), name: "modules", stroke: none, align(top)[`SysV modules`]),
+    node((i, 1), "Collect", width: w),
+    edge("->"),
+    node((i, 2), "Load", width: w),
+    edge("->"),
+    node((i, 3), "Protect", width: w),
+    edge("->"),
+    node((i, 4), "Start", width: w),
+
+    i += 1,
+    edge((i, 0), (i, 5), "--", label-pos: (0, 10%), label-sep: -11em, stroke: blue)[
+      #text(fill: blue)[
+        custom API to \
+        insert / modify modules
+      ]
+    ],
+
+    edge(<custom.west>, "=>", "l", shift: (0, 0), stroke: blue),
+
+    i += 1,
+    node((i, 2.5), name: "custom", width: w, stroke: blue)[
+      #text(fill: blue)[
+        Custom module
+      ]
+    ],
+  ),
+
+
+  caption: [Fold structure],
+)<fig-manifold>
 
 == Manifold
 
@@ -99,7 +278,7 @@ The manifold structure shown in #ref(<manifold-src>) contains arrays of ELF obje
 
 #code("fold/src/manifold.rs", ident: "Manifold", type: "struct", caption: "Manifold structure")<manifold-src>
 
-For example, let's take a look at the first steps of the default System V module chain (#ref(<fig-sysv-chain>)). First, the manifold is initialized with the ELF file of the binary to load. It then goes through the first module which computes and load the dependencies of the executable recursively, yielding a manifold with the initial ELF file and all the dependencies ELFs. This is then passed over to the `Load` module which sets up the address space and load all the segments, both from the initial file and the dependencies, at their respective addresses.
+For example, let's take a look at the first steps of the default System V module chain (#ref(<fig-sysv-chain>)). First, the manifold is initialized with the ELF file of the binary to load. It then goes through the first module, which computes and load the dependencies of the executable recursively, yielding a manifold with the initial ELF file and all the dependencies ELFs. This is then passed over to the `Load` module which sets up the address space and load all the segments, both from the initial file and the dependencies, at their respective addresses.
 
 #figure(
   diagram(
@@ -153,18 +332,6 @@ The physical size indicates only the size of the segment in the file and not the
 
 Note that as of now, the loaded segments are all stored with read & write permission bits, necessary for the next modules. They will be updated with the actual permissions bits from the program header table later on, when all the modifications on the code will have been applied.
 
-/* This phase is responsible to load `PT_LOAD` tagged segments to the right places, from both the ELF target and its dependencies. Mapped address, offset and size are specified inside the segment program header (`p_vaddr`, `p_offset` and `p_memsz`).
-
-The phase start asking Linux to map each segment to `p_vaddr`.
-
-In case where the address is 0, it probably means that the ELF was compiled as a Position Independent Executable. In such case, Linux will choose the base loading address itself. The phase can forward the value to the next phases which may need it by storing it inside the shared map.
-
-Once we have a mapping for the segment, the phase copies the content from the binary to the mapping, offset-ed by `p_offset`.
-
-The phase also clear remaining space in the mapping, which can be identified by subtracting `p_memsize`, the size of the segment in memory, to `p_filesize`, the size of the segment in the ELF. This residual space may be used for zeroed data used by the program.
-
-We don't care about memory protection here, as we may want to be able to read and write to segments latter (or even execute). */
-
 == Thread local storage<tls>
 
 The thread-local storage is a part of memory referenced by the `fs` register and containing data related to the current thread, such as the thread control block (TCB) and some other data defined in the ELF. The specification of thread-local storage for ELF files@tls-spec gives the following schema for the memory layout of TLS:
@@ -177,35 +344,27 @@ The block including the TCB can be simply mmapped after computing the list of of
 
 A relocation is a modification of the content of the loaded segments planned during compilation and resolved during linking stage, as it requires additional information like data from dependencies or even results of code execution. There is a large variety of relocation types, each with its own computation. They are mainly used to update `call`s to external library functions such that they hold the correct address of the function to jump to.
 
-The relocation module processes sections with the tag `SHT_RELA`, each section containing an array of relocations. These entries hold an offset, a type and an extra value (also called addend). Depending on the type of the relocation, the operation to execute is different. 
+The relocation module processes sections with the tag `SHT_RELA`, each section containing an array of relocations. These entries hold an offset, a type and an extra value (also called addend). Depending on the type of the relocation, the operation to execute is different.
 
 Here are some examples from x86 ABI@system-v:
 
 #align(center)[
-#show table.cell.where(y: 0): strong
-#set table(
-  stroke: (x, y) => if y == 0 {
-    (bottom: 0.7pt + black)
-  },
-  align: left
-)
+  #show table.cell.where(y: 0): strong
+  #set table(
+    stroke: (x, y) => if y == 0 {
+      (bottom: 0.7pt + black)
+    },
+    align: left,
+  )
 
-#table(
-  columns: 3,
-  table.header(
-    [Name],
-    [Value],
-    [Calculation],
-  ),
-  [`R_X86_64_64`],
-  [1], [S + A],
-  [`R_X86_64_JUMP_SLOT`],
-  [7], [S],
-  [`R_X86_64_RELATIVE`],
-  [8], [B + A],
-  [`R_X86_64_IRELATIVE`],
-  [37], [indirect (B + A)]
-)
+  #table(
+    columns: 3,
+    table.header([Name], [Value], [Calculation]),
+    [`R_X86_64_64`], [1], [S + A],
+    [`R_X86_64_JUMP_SLOT`], [7], [S],
+    [`R_X86_64_RELATIVE`], [8], [B + A],
+    [`R_X86_64_IRELATIVE`], [37], [indirect (B + A)],
+  )
 ]
 
 - *S* is the value of the symbol found inside the symbol table. It can be found in the linked symbol section and the index of the symbol is stored in the 32 MSBs of the addend.
@@ -229,11 +388,11 @@ Once all the modifications on the segments' content are done, the linker must up
 
 Final module of the chain. Before jumping into the main program, the stack still needs to be set. The module constructs the stack of the executable by pushing `args`, `env` and `auxv` into memory and correctly setting `rsp`. `args`, `env` and `auxv` are set by Linux and could be retrieved from the stack at the very beginning of fold execution. Finally, it jumps to the entry point of the ELF.
 
-= Example implementations<examples>
+= Case study<examples>
 
-An interesting application of the modularized loader is that we can obviously extend the default chain of operation to add utilities. Here follows some examples of such a modified loader, and a demonstration of how simple it is to implement it. 
+An interesting application of the modularized loader is that we can obviously extend the default chain of operation to add utilities. Here follows some examples of such a modified loader, and a demonstration of how simple it is to implement it. // TODO: explain why it is interesting to do that in the loader
 
-== Basic example: Syscall filtering
+== Syscall filtering
 
 From a security perspective, it could be interesting to reduce the number of syscalls a process have access to. The `seccomp` syscall exactly do that! It uses a filter implemented as an `eBPF` program to restrict usage of syscalls. What we can do with Fold, is to call `seccomp` before jumping to the entry point of our program.
 
@@ -243,18 +402,27 @@ To implement this, we can simply create a new Fold module, which will perform a 
 
 Once the module is created, we can define the entry point of our new loader, and augment the basic SystemV chain with our module. It means inserting the module before the start module.
 
-#code("examples/seccomp-linker/src/main.rs", ident: "seccomp_chain", type: "fn", caption: "Main entry for seccomp-linker")<seccomp-main>
+#code(
+  "examples/seccomp-linker/src/main.rs",
+  ident: "seccomp_chain",
+  type: "fn",
+  caption: "Main entry for seccomp-linker",
+)<seccomp-main>
 
 
 == Inter-module communication
 
-We can push the previous syscall filter idea further. For example, we could scan the object to detect the syscalls used and then restrict the process to only this set. 
+We can push the previous syscall filter idea further. For example, we could scan the object to detect the syscalls used and then restrict the process to only this set.
 
 In order to do the scan, and to illustrate communication between modules, we choose to create another module, at the beginning of the chain, that first collect symbols from the ELF and produce a set of syscalls to communicate to the `seccomp` filter module. The last one will retrieve it and create its filter from this.
 
-#code("examples/seccomp-sym-linker/src/syscall_collect.rs", ident: "Module", caption: [Module implementation for `SysCollect`])<seccomp-sys-src>
+#code(
+  "examples/seccomp-sym-linker/src/syscall_collect.rs",
+  ident: "Module",
+  caption: [Module implementation for `SysCollect`],
+)<seccomp-sys-src>
 
-In this basic example, we detect only if `puts` is used and if so, add probably used syscall to the set. 
+In this basic example, we detect only if `puts` is used and if so, add probably used syscall to the set.
 
 The module can store this new set into the manifold shared map, with its own key:
 
@@ -277,7 +445,11 @@ The goal of this example is to allow the injection of hooks before some of the d
 
 For each hook it wants to install, the linker creates two function, the hook itself and a trampoline function which is used to intercept the control flow of the program, call the hook and then resume the call to the target function. To ease the creation of the trampoline function, it is wrapped in a procedural macro (see @trampoline-macro)
 
-#code("examples/trampoline-linker/tramp-macros/src/lib.rs", ident: "#trampoline_ident", caption: [Trampoline generation code])<trampoline-macro>
+#code(
+  "examples/trampoline-linker/tramp-macros/src/lib.rs",
+  ident: "#trampoline_ident",
+  caption: [Trampoline generation code],
+)<trampoline-macro>
 
 Due to its nature, the function is written entirely in assembly and is composed of 5 steps:
 
@@ -298,7 +470,7 @@ The overall execution flow of this function is very similar to a function such a
   ```,
   caption: [Simple trampoline function],
   kind: "code",
-  supplement: "Code snippet"
+  supplement: "Code snippet",
 )<trampoline-func>
 
 The linker adds an extra module after the relocation one to rewrite the relocation of the target functions to actually jump to the hook rather than the external library, and then update the hook's first `mov` instruction to hold the address of the hijacked function.
@@ -311,15 +483,15 @@ Currently, the project features the System V modules for handling basic x86 exec
 
 The default System V modules provided by the framework cover successfully the following types of ELF files: statically linked executables, position independent executables, dynamically linked executables, compiled c program using Musl's `libc`, and even a build-modified version of `sqlite3` built without multithreading and libc-dependent libraries.
 
-There are also several examples that use the framework to achieve various purposes (@examples). They were implemented without ever requiring modification of the design of the framework, showing that the design choices give enough freedom to easily implement new linker starting from the basic System V chain. 
+There are also several examples that use the framework to achieve various purposes (@examples). They were implemented without ever requiring modification of the design of the framework, showing that the design choices give enough freedom to easily implement new linker starting from the basic System V chain.
 
 = Future work<future-work>
 
-Although the design and main parts of the implementation are complete, there are still some challenges to address before the System V modules can be considered fully working. The two major ones are to complete the handling of thread-local storage (@tls) and lazy processing of jump slot relocations (@sysv-reloc). 
+Although the design and main parts of the implementation are complete, there are still some challenges to address before the System V modules can be considered fully working. The two major ones are to complete the handling of thread-local storage (@tls) and lazy processing of jump slot relocations (@sysv-reloc).
 
 Along with these major milestones, some other improvements could be added, such as:
 - Improving stack creation to reuse the initial stack of the process instead of creating a new one before jumping to the entrypoint:
-- Unloading the code of the linker and the objects before starting the program. 
+- Unloading the code of the linker and the objects before starting the program.
 - Symbol hash table for fast symbol lookup
 - Others relocations not implemented
 
