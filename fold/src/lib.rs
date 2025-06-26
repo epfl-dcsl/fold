@@ -7,22 +7,22 @@ extern crate macros;
 
 use core::panic::PanicInfo;
 
+mod allocator;
 mod cli;
 mod driver;
 mod env;
+mod error;
 mod exit;
+mod filters;
+mod manifold;
+mod module;
 mod object;
 mod share_map;
 
-mod allocator;
 pub mod arena;
 pub mod elf;
-mod error;
 pub mod file;
-pub mod filters;
 pub mod logging;
-mod manifold;
-mod module;
 pub mod sysv;
 
 pub use allocator::*;
@@ -31,12 +31,28 @@ pub use driver::*;
 pub use env::*;
 pub use error::*;
 pub use exit::*;
+pub use filters::*;
 pub use macros::chain;
 pub use manifold::*;
 pub use module::*;
 pub use share_map::*;
 
 #[macro_export]
+/// Creates an entrypoint from a function receiving an [`Env`] as parameter. Superseeded by the [`chain`] macro.
+///
+/// ## Example
+///
+/// ```
+/// fold::entry!(entry);
+///
+/// fn entry(env: fold::Env) -> ! {
+///     fold::logging::init(log::LevelFilter::Trace);
+///
+///     fold::default_chain(env!("CARGO_BIN_NAME"), env).run();
+///
+///     fold::exit(fold::Exit::Success)
+/// }
+/// ```
 macro_rules! entry {
     ($path:path) => {
         /// Dynamic linker entry point.

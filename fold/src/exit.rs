@@ -1,5 +1,6 @@
 use rustix::runtime;
 
+/// Exit status code. See also [`exit`].
 pub enum Exit {
     Success,
     Error,

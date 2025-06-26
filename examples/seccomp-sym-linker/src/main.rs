@@ -7,8 +7,7 @@ extern crate fold;
 mod seccomp;
 mod syscall_collect;
 
-use fold::Fold;
-use fold::filters::Filter;
+use fold::{Filter, Fold};
 use seccomp::Seccomp;
 use syscall_collect::SysCollect;
 

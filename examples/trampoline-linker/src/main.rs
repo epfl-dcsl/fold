@@ -10,7 +10,7 @@ pub mod installer;
 
 use core::ffi::CStr;
 
-use fold::{Fold, filters::Filter, println};
+use fold::{Filter, Fold, println};
 use tramp_macros::hook;
 
 use crate::installer::TrampolineReloc;

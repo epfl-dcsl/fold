@@ -6,7 +6,7 @@ extern crate fold;
 
 mod seccomp;
 
-use fold::{Fold, filters::Filter};
+use fold::{Filter, Fold};
 use seccomp::Seccomp;
 
 #[fold::chain]
