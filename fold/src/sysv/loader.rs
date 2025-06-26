@@ -8,8 +8,9 @@ use rustix::mm::{self, MapFlags, ProtFlags};
 use crate::file::MappingMut;
 use crate::manifold::Manifold;
 use crate::module::Module;
+use crate::object::Segment;
 use crate::share_map::ShareMapKey;
-use crate::{Handle, Segment};
+use crate::arena::Handle;
 
 pub const SYSV_LOADER_BASE_ADDR: ShareMapKey<usize> = ShareMapKey::new("sys_loader");
 

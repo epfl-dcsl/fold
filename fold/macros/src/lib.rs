@@ -16,7 +16,7 @@ pub fn chain(_attr: TokenStream, mut item: TokenStream) -> TokenStream {
         fold::entry!(entry);
 
         fn entry(env: fold::Env) -> ! {
-            fold::init_logging(log::LevelFilter::Trace);
+            fold::logging::init(log::LevelFilter::Trace);
 
             #ident(fold::default_chain(env!("CARGO_BIN_NAME"), env)).run();
 

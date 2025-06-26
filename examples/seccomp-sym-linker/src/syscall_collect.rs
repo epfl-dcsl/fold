@@ -2,11 +2,11 @@ use alloc::boxed::Box;
 
 use alloc::vec;
 use alloc::vec::Vec;
-use fold::Handle;
-use fold::manifold::Manifold;
-use fold::module::Module;
-use fold::object::Object;
-use fold::share_map::ShareMapKey;
+use fold::Manifold;
+use fold::Module;
+use fold::ShareMapKey;
+use fold::arena::Handle;
+use fold::elf::Object;
 
 const SYS_WRITE: u32 = 1;
 const SYS_WRITEV: u32 = 20;

@@ -11,13 +11,14 @@ use crate::env::Env;
 use crate::filters::Filter;
 use crate::manifold::Manifold;
 use crate::module::Module;
+use crate::object::Object;
 use crate::sysv::collector::{SysvRemappingCollector, SYSV_COLLECTOR_SEARCH_PATHS_KEY};
 use crate::sysv::loader::SysvLoader;
 use crate::sysv::protect::SysvProtect;
 use crate::sysv::relocation::SysvReloc;
 use crate::sysv::start::SysvStart;
 use crate::sysv::tls::SysvTls;
-use crate::{cli, file, Object};
+use crate::{cli, file};
 
 type ModuleRef = Box<dyn Module>;
 

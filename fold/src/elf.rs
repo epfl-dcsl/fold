@@ -15,7 +15,7 @@ pub use goblin::elf64::section_header::SectionHeader;
 pub use goblin::elf64::sym::Sym;
 use plain::Plain;
 
-use crate::Section;
+pub use crate::object::*;
 
 /// Re-export most of Goblin constants
 pub mod cst {

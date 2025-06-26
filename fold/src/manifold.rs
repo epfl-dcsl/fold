@@ -13,9 +13,10 @@ use crate::arena::{Arena, Handle};
 use crate::elf::sym_bindings;
 use crate::error::FoldError;
 use crate::file::Mapping;
+use crate::object::Section;
 use crate::object::{Object, Segment};
 use crate::share_map::ShareMap;
-use crate::{Env, Section};
+use crate::Env;
 
 // ———————————————————————————————— Manifold ———————————————————————————————— //
 

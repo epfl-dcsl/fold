@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use fold::module::Module;
+use fold::Module;
 use syscalls::{Sysno, syscall};
 
 use crate::syscall_collect::SECCOMP_SYSCALL_FILTER;
@@ -95,7 +95,7 @@ impl Module for Seccomp {
 
     fn process_manifold(
         &mut self,
-        manifold: &mut fold::manifold::Manifold,
+        manifold: &mut fold::Manifold,
     ) -> Result<(), alloc::boxed::Box<dyn core::fmt::Debug>> {
         let empty = vec![];
         let syscall_filter = manifold
@@ -106,7 +106,7 @@ impl Module for Seccomp {
         log::info!("Allowing only syscall(s): {syscall_filter:?}");
 
         // Combine filters for write and exit
-        let mut filters = build_seccomp_filter(syscall_filter.as_slice());
+        let mut filters = build_seccomp_filter(syscall_filter);
 
         let mut prog = SockFprog {
             len: filters.len() as u16,
@@ -115,7 +115,6 @@ impl Module for Seccomp {
         unsafe {
             // Requiered by SECCOMP_SET_MODE_FILTER
             syscall!(Sysno::prctl, PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)
-                .map(|_| ())
                 .map_err(|_| Box::from(SeccompError))?;
 
             // Install the filter using seccomp syscall

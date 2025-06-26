@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
-use fold::module::Module;
+use fold::Module;
 use syscalls::{Sysno, syscall};
 
 // Constants from <linux/seccomp.h>, <linux/filter.h>, and <linux/prctl.h>
@@ -95,7 +95,7 @@ impl Module for Seccomp {
 
     fn process_manifold(
         &mut self,
-        _manifold: &mut fold::manifold::Manifold,
+        _manifold: &mut fold::Manifold,
     ) -> Result<(), alloc::boxed::Box<dyn core::fmt::Debug>> {
         // Combine filters for write and exit
         let mut filters = build_seccomp_filter(&[SYS_WRITE, SYS_EXIT]);

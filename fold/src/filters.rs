@@ -3,7 +3,8 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::ops::BitOr;
 
-use crate::{Object, Section, Segment};
+use crate::object::Section;
+use crate::object::{Object, Segment};
 
 pub enum ItemFilter {
     Manifold,

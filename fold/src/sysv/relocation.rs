@@ -12,10 +12,11 @@ use goblin::elf64::reloc::{self, Rela};
 use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
 use crate::module::Module;
-use crate::object::section::SectionT;
+use crate::object::{Section, SectionT};
+use crate::object::Object;
 use crate::sysv::error::SysvError;
 use crate::sysv::loader::SYSV_LOADER_BASE_ADDR;
-use crate::{Handle, Object, Section};
+use crate::arena::Handle;
 
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {

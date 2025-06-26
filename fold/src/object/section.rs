@@ -10,7 +10,7 @@ use crate::elf::ElfItemIterator;
 use crate::error::FoldError;
 use crate::file::Mapping;
 use crate::manifold::Manifold;
-use crate::Handle;
+use crate::arena::Handle;
 
 macro_rules! derive_sectiont {
     ($struct:ty) => {

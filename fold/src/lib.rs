@@ -7,32 +7,34 @@ extern crate macros;
 
 use core::panic::PanicInfo;
 
-pub use macros::chain;
+mod cli;
+mod driver;
+mod env;
+mod exit;
+mod object;
+mod share_map;
 
-pub mod allocator;
+mod allocator;
 pub mod arena;
-pub mod cli;
-pub mod driver;
 pub mod elf;
-pub mod env;
-pub mod error;
-pub mod exit;
+mod error;
 pub mod file;
 pub mod filters;
 pub mod logging;
-pub mod manifold;
-pub mod module;
-pub mod object;
-pub mod share_map;
+mod manifold;
+mod module;
 pub mod sysv;
 
-pub use arena::Handle;
-pub use driver::{default_chain, new};
-pub use env::Env;
-pub use exit::{exit, exit_error, Exit};
-pub use logging::init as init_logging;
-pub use object::section::{Section, SectionT, StringTableSection, SymbolTableSection};
-pub use object::{Object, Segment};
+pub use allocator::*;
+pub use cli::*;
+pub use driver::*;
+pub use env::*;
+pub use error::*;
+pub use exit::*;
+pub use macros::chain;
+pub use manifold::*;
+pub use module::*;
+pub use share_map::*;
 
 #[macro_export]
 macro_rules! entry {
@@ -70,6 +72,7 @@ macro_rules! entry {
 #[doc(hidden)]
 pub unsafe fn init(argv: usize) -> Env {
     allocator::init_allocator();
+    println!("{}", "hi");
     Env::from_argv(argv)
 }
 

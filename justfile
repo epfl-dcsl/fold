@@ -46,10 +46,13 @@ fmt:
 report:
 	typst compile report/report.typ -f pdf --root ..
 
-doc:
+doc-open:
 	@just report
 	cargo +nightly doc -p fold --target {{target}} -Z build-std=core,alloc --open
-	cargo doc -p tests --open
+
+doc:
+	@just report
+	cargo +nightly doc -p fold --target {{target}} -Z build-std=core,alloc
 
 clean:
 	cargo clean

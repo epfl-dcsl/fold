@@ -6,7 +6,8 @@ use rustix::mm::{self, MprotectFlags};
 
 use crate::manifold::Manifold;
 use crate::module::Module;
-use crate::{Handle, Segment};
+use crate::object::Segment;
+use crate::arena::Handle;
 
 #[derive(Default)]
 pub struct SysvProtect;

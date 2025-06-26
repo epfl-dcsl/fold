@@ -3,9 +3,11 @@ use alloc::vec::Vec;
 use core::arch::asm;
 
 use super::loader::SYSV_LOADER_BASE_ADDR;
+use crate::arena::Handle;
+use crate::elf::Object;
 use crate::manifold::Manifold;
 use crate::module::Module;
-use crate::{Env, Handle};
+use crate::Env;
 
 pub struct SysvStart;
 
@@ -16,7 +18,7 @@ impl Module for SysvStart {
 
     fn process_object(
         &mut self,
-        obj: Handle<crate::Object>,
+        obj: Handle<Object>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn core::fmt::Debug>> {
         let obj = &manifold.objects[obj];
@@ -53,7 +55,7 @@ unsafe fn jmp(entry_point: *const u8, stack: &[u64]) -> ! {
         "mov {tmp}, QWORD PTR [{stack_contents}+{qword_count}*8]",
         "push {tmp}",
         // loop back
-        "jump 2b"
+        "jmp 2b",
 
         "3:",
         "jmp {entry_point}",

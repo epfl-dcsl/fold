@@ -15,9 +15,10 @@ use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
 use crate::manifold::Manifold;
 use crate::share_map::ShareMap;
-use crate::{Section, SymbolTableSection};
 
-pub mod section;
+mod section;
+
+pub use section::*;
 
 // ———————————————————————————————— Objects ————————————————————————————————— //
 

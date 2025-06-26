@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 
 use crate::arena::Handle;
 use crate::manifold::Manifold;
-use crate::object::section::Section;
+use crate::object::Section;
 use crate::object::{Object, Segment};
 
 pub trait Module {
