@@ -1,3 +1,4 @@
+//! Open and store file into the memory.
 use core::fmt;
 
 use rustix::fd::OwnedFd;
@@ -6,6 +7,7 @@ use rustix::{fs, mm, path};
 const S_IFMT: u32 = 0xf000;
 const S_IFDIR: u32 = 0x4000;
 
+/// A read-only memory region optionally backed by a file.
 pub struct Mapping {
     /// Mapped region, owned by the mapping
     bytes: &'static [u8],
@@ -13,6 +15,7 @@ pub struct Mapping {
     _fd: Option<OwnedFd>,
 }
 
+/// A read-write memory region.
 pub struct MappingMut {
     /// Mapped region, owned by the mapping
     bytes: &'static mut [u8],
@@ -26,6 +29,7 @@ impl Mapping {
         }
     }
 
+    /// Returns the mapping's slice.
     pub fn bytes(&self) -> &[u8] {
         self.bytes
     }
@@ -38,16 +42,18 @@ impl MappingMut {
         }
     }
 
+    /// Returns the mapping's read-only slice.
     pub fn bytes(&self) -> &[u8] {
         self.bytes
     }
 
+    /// Returns the mapping's read-write slice.
     pub fn bytes_mut(&mut self) -> &mut [u8] {
         self.bytes
     }
 }
 
-/// Open a file in read only
+/// Open a file in read only mode. See [`map_file`] to create a corresponding read-only mapping.
 pub fn open_file_ro<P: path::Arg + core::marker::Copy + core::fmt::Debug>(
     path: P,
 ) -> Option<OwnedFd> {
@@ -67,6 +73,7 @@ pub fn open_file_ro<P: path::Arg + core::marker::Copy + core::fmt::Debug>(
     }
 }
 
+/// Creates a mapping from an opened file. See [`open_file_ro`] to open files.
 pub fn map_file(fd: OwnedFd) -> Mapping {
     let stat = fs::fstat(&fd).expect("Could not retrieve file size");
     let len = stat.st_size as usize;

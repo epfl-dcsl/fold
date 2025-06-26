@@ -79,6 +79,7 @@ impl Module for SysvLoader {
 
             log::info!("Segment loaded at 0x{:x}", mapping as usize);
 
+            // Store a MappingMut instead ?
             if obj.shared.get(SYSV_LOADER_BASE_ADDR).is_none() {
                 obj.shared.insert(
                     SYSV_LOADER_BASE_ADDR,

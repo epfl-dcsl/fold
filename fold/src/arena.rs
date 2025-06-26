@@ -1,3 +1,5 @@
+//! Wrapper around [`Vec`] that uses type-bound indexes.
+
 use alloc::vec::Vec;
 use core::cmp::{Eq, PartialEq};
 use core::iter::{Enumerate, IntoIterator, Iterator};
@@ -6,6 +8,7 @@ use core::ops::{Index, IndexMut};
 
 // ————————————————————————————————— Arena —————————————————————————————————— //
 
+/// Wrapper around [`Vec`] that uses type-bound indexes.
 pub struct Arena<T> {
     store: Vec<T>,
 }
@@ -17,10 +20,12 @@ impl<T> Default for Arena<T> {
 }
 
 impl<T> Arena<T> {
+    /// Creates an empty `Arena`.
     pub fn new() -> Self {
         Self { store: Vec::new() }
     }
 
+    /// Adds `item` at the end of the Arena.
     pub fn push(&mut self, item: T) -> Handle<T> {
         let idx = self.store.len();
         self.store.push(item);
@@ -30,27 +35,30 @@ impl<T> Arena<T> {
         }
     }
 
+    /// Returns the element at the given handle.
     pub fn get(&self, handle: Handle<T>) -> Option<&T> {
         self.store.get(handle.idx)
     }
 
+    /// Returns a mutable reference to the element at the given handle.
     pub fn get_mut(&mut self, handle: Handle<T>) -> Option<&mut T> {
         self.store.get_mut(handle.idx)
     }
 
-    /// Retur an handle iterator.
-    /// The iterator does not borrow self, but does not guarantee handle validity. Therefore,
-    /// handles returned by this handler can be invalid.
-    pub(crate) fn handle_generator(&self) -> HandleIter<T> {
-        HandleIter::new()
+    /// Return a handle iterator for the elements of the arena. The iterator will not stop at the end of the Arena and
+    /// may therefore return invalid handles. Elements pushed into the arena during the iteration will be yielded.
+    pub(crate) fn handle_generator(&self) -> HandleGenerator<T> {
+        HandleGenerator::new()
     }
 
+    /// Creates an [`EnumHandleIter`] over the arena.
     pub fn enumerate(&self) -> EnumHandleIter<'_, T> {
         EnumHandleIter {
             inner: self.store.iter().enumerate(),
         }
     }
 
+    /// Creates an [`EnumHandleIterMut`] over the arena.
     pub fn enumerate_mut(&mut self) -> EnumHandleIterMut<'_, T> {
         EnumHandleIterMut {
             inner: self.store.iter_mut().enumerate(),
@@ -61,6 +69,8 @@ impl<T> Arena<T> {
 // ————————————————————————————————— Handle ————————————————————————————————— //
 
 #[derive(Debug)]
+/// Index into an [`Arena`]. The handle may not index an existing element of the [`Arena`], even it was created from the
+/// same one.
 pub struct Handle<T> {
     idx: usize,
     _marker: PhantomData<T>,
@@ -72,10 +82,6 @@ impl<T> Handle<T> {
         idx: usize::MAX,
         _marker: PhantomData,
     };
-
-    pub fn idx(self) -> usize {
-        self.idx
-    }
 }
 
 impl<T> PartialEq for Handle<T> {
@@ -116,6 +122,7 @@ impl<T> Copy for Handle<T> {}
 
 // —————————————————————————————————— Keys —————————————————————————————————— //
 
+/// Trait used to index [`Arena`]s.
 pub trait Key<T> {
     fn idx(self) -> usize;
 }
@@ -128,12 +135,13 @@ impl<T> Key<T> for Handle<T> {
 
 // ——————————————————————————————— Iterators ———————————————————————————————— //
 
-pub struct HandleIter<T> {
+/// Handle generator for a given type `T`. It will infinitely yield handles with increasing indexes.
+pub struct HandleGenerator<T> {
     idx: usize,
     _marker: PhantomData<T>,
 }
 
-impl<T> HandleIter<T> {
+impl<T> HandleGenerator<T> {
     fn new() -> Self {
         Self {
             idx: 0,
@@ -142,7 +150,7 @@ impl<T> HandleIter<T> {
     }
 }
 
-impl<T> Iterator for HandleIter<T> {
+impl<T> Iterator for HandleGenerator<T> {
     type Item = Handle<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -155,6 +163,7 @@ impl<T> Iterator for HandleIter<T> {
     }
 }
 
+/// Iterator over an arena yielding both elements and their corresponding [`Handle`].
 pub struct EnumHandleIter<'a, T> {
     inner: Enumerate<core::slice::Iter<'a, T>>,
 }
@@ -175,6 +184,7 @@ impl<'a, T> Iterator for EnumHandleIter<'a, T> {
     }
 }
 
+/// Iterator over an arena yielding both mutable references to elements and their corresponding [`Handle`].
 pub struct EnumHandleIterMut<'a, T> {
     inner: Enumerate<core::slice::IterMut<'a, T>>,
 }

@@ -9,7 +9,7 @@ use goblin::elf::sym::{STB_GLOBAL, STB_LOCAL, STB_WEAK};
 use goblin::elf64::sym::Sym;
 
 use crate::arena::Handle;
-use crate::elf::{cst, sym_bindings, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
+use crate::elf::{sym_bindings, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
 use crate::error::FoldError;
 use crate::exit::exit_error;
 use crate::file::{Mapping, MappingMut};
@@ -24,11 +24,16 @@ pub use section::*;
 
 /// An elf object.
 pub struct Object {
+    /// Path in the filesystem of object's file.
     pub path: CString,
+    /// Raw content of the object.
     pub mapping: Arc<Mapping>,
 
+    /// Handles in the manifold of the section of this object.
     pub sections: Vec<Handle<Section>>,
+    /// Handles in the manifold of the segments of this object.
     pub segments: Vec<Handle<Segment>>,
+    /// Handles in the manifold of the dependencies of this object. TODO: move into shared memory ?
     pub dependencies: Vec<Handle<Object>>,
 
     /// OS ABI
@@ -47,21 +52,24 @@ pub struct Object {
     pub e_phentsize: u16,
     /// Number of entries in the program header table.
     pub e_phnum: u16,
-    /// Index of the section header string table
+    /// Index of the section header string table.
     pub e_shstrndx: u16,
 
+    /// Shared memory specific to this object.
     pub shared: ShareMap,
 }
 
 impl Object {
+    /// Creates an object from a raw memory region. Initialy, `sections`, `segments` and `dependencies` are empty and
+    /// must be filled manually.
     pub fn new(file: Arc<Mapping>, path: CString) -> Self {
         let hdr = as_header(file.bytes());
         let obj = Self {
-            // Completed by the Manifold
+            // Completed by the Manifold.
             sections: Vec::new(),
-            // Completed by the Manifold
+            // Completed by the Manifold.
             segments: Vec::new(),
-            // To be completed by the loader implementation
+            // To be completed by the loader implementation.
             dependencies: Vec::new(),
             path,
             os_abi: hdr.e_ident[0],
@@ -93,21 +101,24 @@ impl Object {
         if ident[0] != 0x7F || ident[1] != 0x45 || ident[2] != 0x4C || ident[3] != 0x46 {
             return Err("Invalid magic number");
         }
-        if ident[cst::EI_VERSION] != 1 {
+        if ident[goblin::elf::header::EI_VERSION] != 1 {
             return Err("Invalid elf version");
         }
 
         Ok(())
     }
 
+    /// Returns a slice of the object's content from `offset` to `offset + len`.
     pub fn raw_slice(&self, offset: usize, len: usize) -> &[u8] {
         &self.mapping.bytes()[offset..(offset + len)]
     }
 
+    /// Returns the ELF header of the object.
     pub fn header(&self) -> &ElfHeader {
         as_header(self.raw())
     }
 
+    /// Returns the path of the file corresponding to the object as a utf-8 string.
     pub fn display_path(&self) -> &str {
         match self.path.to_str() {
             Ok(path) => path,
@@ -115,19 +126,28 @@ impl Object {
         }
     }
 
+    /// Raw content of the object.
     pub fn raw(&self) -> &[u8] {
         self.mapping.bytes()
     }
 
+    /// Creates an iterator over the [`SectionHeader`] table. See also [`ElfItemIterator`]
     pub fn section_headers(&'_ self) -> ElfItemIterator<'_, SectionHeader> {
         ElfItemIterator::new(self.raw(), self.e_shoff, self.e_shnum, self.e_shentsize)
     }
 
+    /// Creates an iterator over the [`ProgramHeader`] table. See also [`ElfItemIterator`]
     pub fn program_headers(&'_ self) -> ElfItemIterator<'_, ProgramHeader> {
         ElfItemIterator::new(self.raw(), self.e_phoff, self.e_phnum, self.e_phentsize)
     }
 
-    pub fn find_symbol_<'a>(
+    /// Resolves a symbol in the object.
+    ///
+    /// - `symbol`: Name of the symbol to resolve.
+    /// - `manifold`: The current manifold.
+    /// - `symbol_table_mapper`: A function to convert a [`Section`] into a [`SymbolTableSection`]. Useful to select
+    /// between dynamic and non-dynamic symbol sections.
+    fn find_symbol_<'a>(
         &'a self,
         symbol: &'_ CStr,
         manifold: &'a Manifold,
@@ -142,7 +162,7 @@ impl Object {
             .map(|h| &manifold.sections[*h])
             .filter_map(|s| symbol_table_mapper(s).ok())
         {
-            // List all entries with matching symbol name
+            // List all entries with matching symbol name.
             let matching_entries: Vec<(Sym, &CStr)> = section
                 .symbol_iter(manifold)
                 .filter_map(Result::ok)
@@ -165,7 +185,7 @@ impl Object {
             // If an non-weak entry is found, return it.
             if let Some((sym, _)) = entry {
                 if sym.st_shndx != SHN_UNDEF as u16 {
-                    // Section containing the symbol
+                    // Section containing the symbol.
                     let container = manifold
                         .sections
                         .get(self.sections[sym.st_shndx as usize])
@@ -183,6 +203,7 @@ impl Object {
         weak_result
     }
 
+    /// Returns an iterator over all the symbols in the object as well as their string representation.
     pub fn symbols<'a>(
         &'a self,
         manifold: &'a Manifold,
@@ -194,8 +215,8 @@ impl Object {
             .flat_map(move |s: SymbolTableSection<'a>| s.symbol_iter(manifold))
     }
 
-    /// Find the given symbol in one of the [`SHT_STRTAB`](goblin::elf::section_header::SHT_STRTAB) section of this object.
-    /// Symbols with binding [`STB_LOCAL`] or [`STB_GLOBAL`] take priority over [`STB_WEAK`].
+    /// Find the given symbol in one of the [`SHT_STRTAB`](goblin::elf::section_header::SHT_STRTAB) section of this
+    /// object. Symbols with binding [`STB_LOCAL`] or [`STB_GLOBAL`] take priority over [`STB_WEAK`].
     pub fn find_symbol<'a>(
         &'a self,
         symbol: &'_ CStr,
@@ -204,8 +225,8 @@ impl Object {
         self.find_symbol_(symbol, manifold, |s| s.as_symbol_table())
     }
 
-    /// Find the given symbol in one of the [`SHT_DYNSYM`](goblin::elf::section_header::SHT_DYNSYM) section of this object.
-    /// Symbols with binding [`STB_LOCAL`] or [`STB_GLOBAL`] take priority over [`STB_WEAK`].
+    /// Find the given symbol in one of the [`SHT_DYNSYM`](goblin::elf::section_header::SHT_DYNSYM) section of this
+    /// object. Symbols with binding [`STB_LOCAL`] or [`STB_GLOBAL`] take priority over [`STB_WEAK`].
     pub fn find_dynamic_symbol<'a>(
         &'a self,
         symbol: &'_ CStr,
@@ -218,7 +239,7 @@ impl Object {
 // ———————————————————————————————— Segments ———————————————————————————————— //
 
 pub struct Segment {
-    /// The mapping backing this segment.
+    /// The mapping backing the object containing this segment. TODO: use segment mapping instead.
     pub mapping: Arc<Mapping>,
     /// If the segment is loadable, this is the mapping to the loaded
     pub loaded_mapping: Option<Arc<MappingMut>>,

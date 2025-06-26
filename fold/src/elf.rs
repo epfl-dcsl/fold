@@ -1,4 +1,4 @@
-//! # Elf
+//! # Elf utilities and constants.
 //!
 //! Re-export goblin's data structures with saner paths, and offers some elf utilities.
 
@@ -17,43 +17,9 @@ use plain::Plain;
 
 pub use crate::object::*;
 
-/// Re-export most of Goblin constants
-pub mod cst {
-    pub use goblin::elf64::dynamic::*;
-    pub use goblin::elf64::header::*;
-    pub use goblin::elf64::program_header::*;
-    pub use goblin::elf64::section_header::*;
-    pub use goblin::elf64::sym::*;
-
-    pub const SHT_RELR: u32 = 19;
-}
-
-// —————————————————————————————— Tagged Items —————————————————————————————— //
-
-pub trait Tagged<T> {
-    fn tag(&self) -> T;
-}
-
-impl Tagged<u64> for Dyn {
-    fn tag(&self) -> u64 {
-        self.d_tag
-    }
-}
-
-impl Tagged<u32> for ProgramHeader {
-    fn tag(&self) -> u32 {
-        self.p_type
-    }
-}
-
-impl Tagged<u32> for SectionHeader {
-    fn tag(&self) -> u32 {
-        self.sh_type
-    }
-}
-
 // ——————————————————————————————— Iterators ———————————————————————————————— //
 
+/// Utility iterator that allows to parse and iterate over the content of a section.
 pub struct ElfItemIterator<'a, T> {
     raw: &'a [u8],
     idx: usize,
@@ -63,7 +29,15 @@ pub struct ElfItemIterator<'a, T> {
 }
 
 impl<'a, T> ElfItemIterator<'a, T> {
+    /// Creates an iterator from raw values.
+    ///
+    /// - `raw`: The content of the object containing the section.
+    /// - `e_shoff`: The position of the section in the object.
+    /// - `e_shnum`: The number of entries in the section.
+    /// - `e_shentsize`: The size of an entry. Must be equal to the size of `T`.
     pub fn new(raw: &'a [u8], e_shoff: usize, e_shnum: u16, e_shentsize: u16) -> Self {
+        assert_eq!(e_shentsize as usize, core::mem::size_of::<T>());
+
         Self {
             raw,
             idx: e_shoff,
@@ -73,18 +47,27 @@ impl<'a, T> ElfItemIterator<'a, T> {
         }
     }
 
-    pub fn with_len(raw: &'a [u8], offset: usize, len: usize) -> Self {
-        // TODO: check that alignment & size alllows to pack them.
+    /// Creates an iterator from an offset an a size.
+    ///
+    /// - `raw`: The content of the object containing the section.
+    /// - `e_shoff`: The position of the section in the object.
+    /// - `e_shsize`: The size of the section.
+    pub fn with_len(raw: &'a [u8], e_shoff: usize, e_shsize: usize) -> Self {
+        // TODO: check that alignment & size allows to pack them.
         let size = core::mem::size_of::<T>();
         Self {
             raw,
-            idx: offset,
-            end: offset + len,
+            idx: e_shoff,
+            end: e_shoff + e_shsize,
             item_size: size,
             _marker: PhantomData,
         }
     }
 
+    /// Creates an iterator from a section header entry.
+    ///
+    /// - `raw`: The content of the object containing the section.
+    /// - `sh`: The corresponding section header entry.
     pub fn from_section_header(raw: &'a [u8], sh: &SectionHeader) -> Self {
         assert_eq!(sh.sh_entsize as usize, core::mem::size_of::<T>());
         Self {
@@ -96,8 +79,9 @@ impl<'a, T> ElfItemIterator<'a, T> {
         }
     }
 
+    /// Creates an iterator over a section.
     pub fn from_section(sh: &'a Section) -> Self {
-        // assert_eq!({ sh.entity_size }, core::mem::size_of::<T>());
+        assert_eq!({ sh.entity_size }, core::mem::size_of::<T>());
         Self {
             raw: sh.mapping.bytes(),
             idx: sh.offset,
@@ -139,35 +123,9 @@ impl<T> Clone for ElfItemIterator<'_, T> {
     }
 }
 
-// ———————————————————————————————— Helpers ————————————————————————————————— //
-
-impl<'a, T> ElfItemIterator<'a, T>
-where
-    T: Plain + 'a,
-{
-    pub fn find_tag<Tag>(&self, tag: Tag) -> Option<&'a T>
-    where
-        T: Tagged<Tag>,
-        Tag: Eq,
-    {
-        self.clone().find(|x| x.tag() == tag)
-    }
-}
-
-impl<'a> ElfItemIterator<'a, ProgramHeader> {
-    pub fn find_segment<'b>(&'b mut self, p_type: u32) -> Option<&'a ProgramHeader> {
-        self.find(|segment| segment.p_type == p_type)
-    }
-}
-
-impl<'a> ElfItemIterator<'a, SectionHeader> {
-    pub fn find_section<'b>(&'b mut self, sh_type: u32) -> Option<&'a SectionHeader> {
-        self.find(|section| section.sh_type == sh_type)
-    }
-}
-
 // —————————————————————————— Helpers for symbols ——————————————————————————— //
 
+/// Return the `BINDING` value of the symbol.
 pub fn sym_bindings(sym: &Sym) -> u8 {
     sym.st_info >> 4
 }

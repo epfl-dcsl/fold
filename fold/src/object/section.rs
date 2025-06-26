@@ -42,7 +42,7 @@ macro_rules! as_section {
 ///
 /// All the attributes of the section can be accessed directly. For more complex manipulation, the `as_*` methods can be used to create tag-checked wrappers around the section.
 pub struct Section {
-    /// The mapping backing this section.
+    /// The mapping of the object containing this section. TODO: change to use the section's slice instead.
     pub mapping: Arc<Mapping>,
     /// The object containing this section.
     pub obj: Handle<Object>,
