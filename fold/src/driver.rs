@@ -155,7 +155,7 @@ impl Fold {
         self.phases.push(Phase {
             name: name.as_ref().to_owned(),
             module: Box::new(module),
-            filter: item.into(),
+            filter: item,
         });
 
         self
@@ -302,7 +302,7 @@ impl ModuleHandle {
 
         phase.name = name.as_ref().to_owned();
         phase.module = Box::new(module);
-        phase.filter = item.into();
+        phase.filter = item;
 
         self.fold
     }
@@ -359,7 +359,7 @@ impl PositionedModuleHandle {
             Phase {
                 name: name.as_ref().to_string(),
                 module: Box::new(module),
-                filter: item.into(),
+                filter: item,
             },
         );
 

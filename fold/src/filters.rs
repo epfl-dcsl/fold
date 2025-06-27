@@ -5,11 +5,15 @@ use core::ops::BitOr;
 
 use crate::object::{Object, Section, Segment};
 
+pub type ObjectPredicate = Box<dyn Fn(&Object) -> bool>;
+pub type SegmentPredicate = Box<dyn Fn(&Object, &Segment) -> bool>;
+pub type SectionPredicate = Box<dyn Fn(&Object, &Section) -> bool>;
+
 pub(crate) enum ItemFilter {
     Manifold,
-    Object(Box<dyn Fn(&Object) -> bool>),
-    Segment(Box<dyn Fn(&Object, &Segment) -> bool>),
-    Section(Box<dyn Fn(&Object, &Section) -> bool>),
+    Object(ObjectPredicate),
+    Segment(SegmentPredicate),
+    Section(SectionPredicate),
 }
 
 /// Element filter for applying [`Module`][crate::Module]s from a [`Fold`][crate::Fold].
@@ -17,14 +21,14 @@ pub(crate) enum ItemFilter {
 /// A basic filter can match either the whole [`Manifold`][crate::Manifold], or [`Object`], [`Segment`] or [`Section`]
 /// based on a predicate. `Filter` also exposes methods for usual cases, such as `any_*` or per-tag selection. `Filter`s
 /// can be composed using the `|` ([`BitOr`]) operator to extend a [`Module`][crate::Module]'s reach.
-/// 
+///
 /// ## Examples
-/// 
+///
 /// ```
 /// // Filter matching `PT_LOAD` segments
 /// Filter::segment_type(PT_LOAD);
-/// 
-/// // Filter matching the manifold and objects 
+///
+/// // Filter matching the manifold and objects
 /// Filter::manifold() | Filter::any_object();
 /// ```
 pub struct Filter {

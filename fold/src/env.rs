@@ -6,8 +6,8 @@ use core::fmt;
 
 #[derive(Debug)]
 #[repr(C)]
-/// An entry in the auxiliary vector. 
-/// 
+/// An entry in the auxiliary vector.
+///
 /// The auxiliary vector conveys information from the operating system to the application about the execution context
 /// (see the [Linux documentation](<https://refspecs.linuxfoundation.org/LSB_1.3.0/IA64/spec/auxiliaryvector.html>)).
 pub struct Auxv {
@@ -57,7 +57,8 @@ pub struct Env {
 impl Env {
     /// Construct an [`Env`] from the data given by the kernel at the start of execution.
     ///
-    /// Safety: `argv` must be a pointer to the start of the `argv` array.
+    /// # Safety
+    /// `argv` must be a pointer to the start of the `argv` array.
     pub unsafe fn from_argv(argv: usize) -> Self {
         let (args, ptr) = Self::collect_strings(argv as *const _);
         let ptr = ptr.add(1);

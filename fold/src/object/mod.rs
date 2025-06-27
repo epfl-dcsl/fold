@@ -146,7 +146,7 @@ impl Object {
     /// - `symbol`: Name of the symbol to resolve.
     /// - `manifold`: The current manifold.
     /// - `symbol_table_mapper`: A function to convert a [`Section`] into a [`SymbolTableSection`]. Useful to select
-    /// between dynamic and non-dynamic symbol sections.
+    ///   between dynamic and non-dynamic symbol sections.
     fn find_symbol_<'a>(
         &'a self,
         symbol: &'_ CStr,
