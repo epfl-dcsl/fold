@@ -239,8 +239,8 @@ impl Object {
 // ———————————————————————————————— Segments ———————————————————————————————— //
 
 pub struct Segment {
-    /// The mapping backing the object containing this segment. TODO: use segment mapping instead.
-    pub mapping: Arc<Mapping>,
+    /// The mapping representing this segment in the object.
+    pub mapping: Mapping,
     /// If the segment is loadable, this is the mapping to the loaded
     pub loaded_mapping: Option<Arc<MappingMut>>,
     /// The object containing this segment.
@@ -273,7 +273,11 @@ impl Segment {
         let mapping = &obj.mapping;
 
         Self {
-            mapping: mapping.clone(),
+            mapping: Mapping {
+                bytes: &mapping.bytes()
+                    [header.p_offset as usize..(header.p_offset + header.p_filesz) as usize],
+                fd: None,
+            },
             loaded_mapping: None,
             obj: obj_idx,
             tag: header.p_type,

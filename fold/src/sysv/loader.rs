@@ -5,12 +5,12 @@ use core::ffi::c_void;
 use goblin::elf::program_header::PT_LOAD;
 use rustix::mm::{self, MapFlags, ProtFlags};
 
+use crate::arena::Handle;
 use crate::file::MappingMut;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::Segment;
 use crate::share_map::ShareMapKey;
-use crate::arena::Handle;
 
 pub const SYSV_LOADER_BASE_ADDR: ShareMapKey<usize> = ShareMapKey::new("sys_loader");
 
@@ -91,10 +91,7 @@ impl Module for SysvLoader {
             let mapping_start = mapping.add(addr & 0xfff);
 
             // Copy segment data
-            mapping_start.copy_from(
-                ((obj.raw().as_ptr() as usize) + s.offset) as *mut c_void,
-                s.file_size,
-            );
+            mapping_start.copy_from(s.mapping.bytes().as_ptr() as *mut c_void, s.file_size);
 
             if s.mem_size > s.file_size {
                 // Zero memory after segment
