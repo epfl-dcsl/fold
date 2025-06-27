@@ -6,37 +6,45 @@ Fold is a framework to create dynamic linkers in Rust.
 
 To get started, first install the dependencies:
 
-1. Install Rust (see the [instructions](https://rust-lang.org/tools/install)).
-2. Install [Just](https://github.com/casey/just) (can be installed with `cargo install just`).
+- [Rust and `cargo`](https://rust-lang.org/tools/install)
+- [`just`](https://github.com/casey/just)
+- `nasm`
+- `patchelf`
+- `gcc`
+- `make` (for `sqlite3` build)
+- `typst` (for rendering the [report](./report/))
 
-Then, in the Fold folder:
+See `just help` to list available commands. The most important ones are:
 
-Run `just run samples/hello` to run Fold with a small ELF.
+- `just build`
+- `just test`
+- `just run <TARGET>`, e.g. `just run samples/hello`.
 
-You should see an "hi there".
+## IDE configuration
 
-## Build
+To have full Intellisense and linter support, we recommend to use VSCode with the rust-analyzer extension. Add the following lines to `.vscode/settings.json`:
 
-To build `fold`, sample binaries and example linkers, just use the following command:
-
-```sh
-just build
-```
-
-## Samples
-
-`sample` folder contain many ELF files that you can use to test your own linker.
-
-## Test
-
-`tests` folder contains end-to-end tests that runs fold. or example linkers, on binary samples and check correct output.
-
-To run these tests, run:
-
-```sh
-just test
+```jsonc
+{
+  "rust-analyzer.linkedProjects": [
+    "${workspaceFolder}/Cargo.toml",
+    "${workspaceFolder}/tests/Cargo.toml"
+  ]
+}
 ```
 
 ## Examples
 
-[examples](./examples/) folder contains implementations of dynamic linkers using Fold.
+The [examples](./examples/) folder contains implementations of dynamic linkers using Fold. See the [report](./report/report.pdf) for more details (if not already done, it can be built with `just report`).
+
+### Syscall filtering
+
+From a security perspective, it could be interesting to reduce the number of syscalls a process have access to. The `seccomp` syscall exactly do that! It uses a filter implemented as an `eBPF` program to restrict usage of syscalls. What we can do with Fold, is to call `seccomp` before jumping to the entry point of our program.
+
+### Inter-module communication
+
+We can push the previous syscall filter idea further. For example, we could scan the object to detect the syscalls used and then restrict the process to only this set.
+
+### Function hooks
+
+The goal of this example is to allow the injection of hooks before some of the dynamically linked functions. To be considered successful, these hooks should be invisible both to the program itself and to the libraries.
