@@ -1,4 +1,4 @@
-//! Wrapper around [`Vec`] that uses type-bound indexes.
+//! Wrapper around `Vec` that uses type-bound indexes.
 
 use alloc::vec::Vec;
 use core::cmp::{Eq, PartialEq};
@@ -8,7 +8,7 @@ use core::ops::{Index, IndexMut};
 
 // ————————————————————————————————— Arena —————————————————————————————————— //
 
-/// Wrapper around [`Vec`] that uses type-bound indexes.
+/// Wrapper around `Vec` that uses type-bound indexes.
 pub struct Arena<T> {
     store: Vec<T>,
 }

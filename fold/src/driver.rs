@@ -29,7 +29,7 @@ type ModuleRef = Box<dyn Module>;
 /// It consists of several [`Module`] that are applied successively to a [`Manifold`]. Each module is registered along
 /// with a [`Filter`], selecting on which elements of the [`Manifold`] the module must be applied to.
 ///
-/// `Fold` can be constructed with either [`new`], [`default_chain`] or [`crate::chain`], then modules can be registered
+/// `Fold` can be constructed with either [`new`], [`default_chain`] or [`chain`][crate::chain], then modules can be registered
 /// with the object's methods. Modules can also be removed or modified, allowing to easily modify already existing
 /// chain.
 pub struct Fold {
@@ -72,7 +72,7 @@ pub fn new(env: Env, linker_name: &str) -> Fold {
     }
 }
 
-/// Creates a [`Fold`] with a default chain of [`crate::sysv`] modules, able to link x86 executables
+/// Creates a [`Fold`] with a default chain of [`sysv`][crate::sysv] modules, able to link x86 executables
 ///
 /// See [`new`] for details on the arguments.
 pub fn default_chain(env: Env, linker_name: &str) -> Fold {
