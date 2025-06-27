@@ -1,7 +1,10 @@
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
+use alloc::collections::btree_map::BTreeMap;
+use alloc::ffi::CString;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use core::str::FromStr;
 
 use goblin::elf::program_header::PT_LOAD;
 
@@ -12,7 +15,9 @@ use crate::filters::Filter;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::Object;
-use crate::sysv::collector::{SysvRemappingCollector, SYSV_COLLECTOR_SEARCH_PATHS_KEY};
+use crate::sysv::collector::{
+    SysvRemappingCollector, SYSV_COLLECTOR_REMAP_KEY, SYSV_COLLECTOR_SEARCH_PATHS_KEY,
+};
 use crate::sysv::loader::SysvLoader;
 use crate::sysv::protect::SysvProtect;
 use crate::sysv::relocation::SysvReloc;
@@ -69,19 +74,7 @@ impl Fold {
         let mut fold = Self::new(env, linker_name)
             .register(
                 "collect",
-                SysvRemappingCollector::new()
-                    .replace("libc.so", "libc.so")
-                    .drop_multiple(&[
-                        "ld-linux-x86-64.so",
-                        "libcrypt.so",
-                        "libdl.so",
-                        "libm.so",
-                        "libpthread.so",
-                        "libresolv.so",
-                        "librt.so",
-                        "libutil.so",
-                        "libxnet.so",
-                    ]),
+                SysvRemappingCollector::new(),
                 Filter::any_object(),
             )
             .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
@@ -108,6 +101,38 @@ impl Fold {
                     .map(|s| s.to_owned())
                     .collect(),
             );
+        }
+
+        // Compute libc remapping to use musl
+        {
+            fn cs(s: &str) -> CString {
+                CString::from_str(s).unwrap()
+            }
+
+            // Replace the versionned libc (e.g. libc.so.6) present in the deps by musl's unversionned libc
+            let mut map = BTreeMap::new();
+            map.insert(
+                "libc.so".to_owned(),
+                Some(CString::from_str("libc.so").unwrap()),
+            );
+
+            let to_drop = [
+                "ld-linux-x86-64.so",
+                "libcrypt.so",
+                "libdl.so",
+                "libm.so",
+                "libpthread.so",
+                "libresolv.so",
+                "librt.so",
+                "libutil.so",
+                "libxnet.so",
+            ];
+
+            for d in to_drop {
+                map.insert(d.to_owned(), None);
+            }
+
+            fold.initial_share_map.insert(SYSV_COLLECTOR_REMAP_KEY, map);
         }
 
         fold

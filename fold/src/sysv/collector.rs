@@ -7,7 +7,6 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::ffi::CStr;
 use core::fmt::Debug;
-use core::str::FromStr;
 
 use goblin::elf::dynamic::DT_NEEDED;
 use goblin::elf::section_header::SHT_DYNAMIC;
@@ -67,6 +66,8 @@ impl Debug for SysvCollectorEntry {
 
 pub const SYSV_COLLECTOR_SEARCH_PATHS_KEY: ShareMapKey<Vec<String>> =
     ShareMapKey::new("sysv_collector_search_paths");
+pub const SYSV_COLLECTOR_REMAP_KEY: ShareMapKey<BTreeMap<String, Option<CString>>> =
+    ShareMapKey::new("sysv_collector_map");
 pub const SYSV_COLLECTOR_RESULT_KEY: ShareMapKey<Vec<SysvCollectorEntry>> =
     ShareMapKey::new("sysv_collector_result");
 
@@ -133,34 +134,11 @@ impl Module for SysvCollector {
 }
 
 #[derive(Debug, Default)]
-pub struct SysvRemappingCollector {
-    map: BTreeMap<String, Option<CString>>,
-}
+pub struct SysvRemappingCollector;
 
 impl SysvRemappingCollector {
     pub fn new() -> Self {
         Default::default()
-    }
-
-    pub fn replace(mut self, old_deps: &str, new_deps: &str) -> Self {
-        self.map
-            .insert(old_deps.into(), Some(CString::from_str(new_deps).unwrap()));
-        self
-    }
-
-    pub fn replace_multiple(self, entries: &[(&str, &str)]) -> Self {
-        entries
-            .iter()
-            .fold(self, |acc, (old, new)| acc.replace(old, new))
-    }
-
-    pub fn drop(mut self, deps: &str) -> Self {
-        self.map.insert(deps.into(), None);
-        self
-    }
-
-    pub fn drop_multiple(self, entries: &[&str]) -> Self {
-        entries.iter().fold(self, |acc, deps| acc.drop(deps))
     }
 }
 
@@ -187,11 +165,17 @@ impl Module for SysvRemappingCollector {
         trace!("[{}] Collecting from obj", obj.display_path());
         trace!("[{}] Initial deps: {:?}", obj.display_path(), deps);
 
+        let empty_map = BTreeMap::new();
+        let map = manifold
+            .shared
+            .get(SYSV_COLLECTOR_REMAP_KEY)
+            .unwrap_or(&empty_map);
+
         // Compute and remap the dependencies of the current object
         let new_deps = read_deps(obj, manifold)?.into_iter().filter_map(|d| {
             let Ok(dstr) = d.to_str() else { return Some(d) };
 
-            let entry = self.map.iter().find(|(k, _)| dstr.starts_with(*k));
+            let entry = map.iter().find(|(k, _)| dstr.starts_with(*k));
 
             match entry {
                 Some((_, val)) => val.clone(),

@@ -6,11 +6,11 @@ use goblin::elf::section_header::*;
 use goblin::elf64::section_header::SectionHeader;
 
 use super::Object;
+use crate::arena::Handle;
 use crate::elf::ElfItemIterator;
 use crate::error::FoldError;
 use crate::file::Mapping;
 use crate::manifold::Manifold;
-use crate::arena::Handle;
 
 macro_rules! derive_sectiont {
     ($struct:ty) => {
