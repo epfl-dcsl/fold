@@ -10,6 +10,7 @@ use crate::elf::ElfItemIterator;
 use crate::error::FoldError;
 use crate::file::Mapping;
 use crate::manifold::Manifold;
+use crate::ShareMap;
 
 macro_rules! derive_sectiont {
     ($struct:ty) => {
@@ -69,6 +70,9 @@ pub struct Section {
     pub info: u32,
     /// Size of the elements contained in the section, if applicable.
     pub entity_size: usize,
+
+    /// Shared memory specific to this object.
+    pub shared: ShareMap,
 }
 
 impl Section {
@@ -104,6 +108,7 @@ impl Section {
             link_idk: header.sh_link,
             info: header.sh_info,
             entity_size: header.sh_entsize as usize,
+            shared: ShareMap::new(),
         }
     }
 

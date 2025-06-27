@@ -1,9 +1,11 @@
+use alloc::sync::Arc;
+
 use goblin::elf64::program_header::ProgramHeader;
 
 use crate::arena::Handle;
 use crate::elf::Object;
-use crate::file::Mapping;
-use crate::Manifold;
+use crate::file::{Mapping, MappingMut};
+use crate::{Manifold, ShareMap};
 
 pub struct Segment {
     /// The mapping representing this segment in the object.
@@ -28,6 +30,9 @@ pub struct Segment {
     pub mem_size: usize,
     /// Required alignment for the section.
     pub align: usize,
+
+    /// Shared memory specific to this object.
+    pub shared: ShareMap,
 }
 
 impl Segment {
@@ -55,6 +60,7 @@ impl Segment {
             file_size: header.p_filesz as usize,
             mem_size: header.p_memsz as usize,
             align: header.p_align as usize,
+            shared: ShareMap::new(),
         }
     }
 }
