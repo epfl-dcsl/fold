@@ -13,8 +13,7 @@ use crate::arena::{Arena, Handle};
 use crate::elf::sym_bindings;
 use crate::error::FoldError;
 use crate::file::Mapping;
-use crate::object::Section;
-use crate::object::{Object, Segment};
+use crate::object::{Object, Section, Segment};
 use crate::share_map::ShareMap;
 use crate::Env;
 
@@ -30,12 +29,12 @@ pub struct Manifold {
 }
 
 impl Manifold {
-    pub(crate) fn new(env: Env) -> Self {
+    pub(crate) fn new(env: Env, shared: ShareMap) -> Self {
         Self {
             objects: Arena::new(),
             sections: Arena::new(),
             segments: Arena::new(),
-            shared: ShareMap::new(),
+            shared,
             env,
         }
     }
