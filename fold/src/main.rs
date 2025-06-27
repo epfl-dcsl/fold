@@ -6,7 +6,7 @@ extern crate fold;
 
 use fold::{chain, Fold};
 
-#[chain]
+#[chain(log = Trace)]
 fn chain(chain: Fold) -> Fold {
     chain
 }

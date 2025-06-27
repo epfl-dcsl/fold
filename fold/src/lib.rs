@@ -37,6 +37,8 @@ pub use manifold::*;
 pub use module::*;
 pub use share_map::*;
 
+pub use log;
+
 #[macro_export]
 /// Creates an entrypoint from a function receiving an [`Env`] as parameter. Superseeded by the [`chain`] macro.
 ///

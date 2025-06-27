@@ -45,68 +45,68 @@ struct Phase {
     filter: Filter,
 }
 
-/// Creates an empty [`Fold`] from the execution context (`env`) and the name of the linker's binary (`linker_name`).
-///
-/// `linker_name` is required in order to identify whether the linker was explicitely invoked (`/lib/linker exe`) or
-/// implicitely by the kernel (`./exe`).
-pub fn new(env: Env, linker_name: &str) -> Fold {
-    log::info!("Hello, world!");
-    log::info!("Args: {:?}", &env.args);
-
-    let config = cli::parse(env, linker_name);
-
-    let cwd = if let Some(last_delim) = config.target.to_string_lossy().rfind('/') {
-        &config.target.to_string_lossy()[..last_delim]
-    } else {
-        "."
-    };
-
-    log::info!(r#"adding cwd to path: "{cwd}""#);
-
-    let search_path = Vec::from(&[cwd.to_owned()]);
-
-    Fold {
-        config,
-        search_path,
-        phases: Vec::new(),
-    }
-}
-
-/// Creates a [`Fold`] with a default chain of [`sysv`][crate::sysv] modules, able to link x86 executables
-///
-/// See [`new`] for details on the arguments.
-pub fn default_chain(env: Env, linker_name: &str) -> Fold {
-    new(env, linker_name)
-        .search_paths(["musl/lib", "/lib", "/lib64", "/usr/lib/"].iter())
-        .register(
-            "collect",
-            SysvRemappingCollector::new()
-                .replace("libc.so", "libc.so")
-                .drop_multiple(&[
-                    "ld-linux-x86-64.so",
-                    "libcrypt.so",
-                    "libdl.so",
-                    "libm.so",
-                    "libpthread.so",
-                    "libresolv.so",
-                    "librt.so",
-                    "libutil.so",
-                    "libxnet.so",
-                ]),
-            Filter::any_object(),
-        )
-        .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
-        .register("tls", SysvTls, Filter::manifold())
-        .register(
-            "relocation",
-            SysvReloc::new(),
-            Filter::any_object(), // TODO: match only elf
-        )
-        .register("protect", SysvProtect, Filter::segment_type(PT_LOAD))
-        .register("start", SysvStart, Filter::any_object())
-}
-
 impl Fold {
+    /// Creates an empty [`Fold`] from the execution context (`env`) and the name of the linker's binary (`linker_name`).
+    ///
+    /// `linker_name` is required in order to identify whether the linker was explicitely invoked (`/lib/linker exe`) or
+    /// implicitely by the kernel (`./exe`).
+    pub fn new(env: Env, linker_name: &str) -> Fold {
+        log::info!("Hello, world!");
+        log::info!("Args: {:?}", &env.args);
+
+        let config = cli::parse(env, linker_name);
+
+        let cwd = if let Some(last_delim) = config.target.to_string_lossy().rfind('/') {
+            &config.target.to_string_lossy()[..last_delim]
+        } else {
+            "."
+        };
+
+        log::info!(r#"adding cwd to path: "{cwd}""#);
+
+        let search_path = Vec::from(&[cwd.to_owned()]);
+
+        Fold {
+            config,
+            search_path,
+            phases: Vec::new(),
+        }
+    }
+
+    /// Creates a [`Fold`] with a default chain of [`sysv`][crate::sysv] modules, able to link x86 executables
+    ///
+    /// See [`new`] for details on the arguments.
+    pub fn default_chain(env: Env, linker_name: &str) -> Fold {
+        Self::new(env, linker_name)
+            .search_paths(["musl/lib", "/lib", "/lib64", "/usr/lib/"].iter())
+            .register(
+                "collect",
+                SysvRemappingCollector::new()
+                    .replace("libc.so", "libc.so")
+                    .drop_multiple(&[
+                        "ld-linux-x86-64.so",
+                        "libcrypt.so",
+                        "libdl.so",
+                        "libm.so",
+                        "libpthread.so",
+                        "libresolv.so",
+                        "librt.so",
+                        "libutil.so",
+                        "libxnet.so",
+                    ]),
+                Filter::any_object(),
+            )
+            .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
+            .register("tls", SysvTls, Filter::manifold())
+            .register(
+                "relocation",
+                SysvReloc::new(),
+                Filter::any_object(), // TODO: match only elf
+            )
+            .register("protect", SysvProtect, Filter::segment_type(PT_LOAD))
+            .register("start", SysvStart, Filter::any_object())
+    }
+
     /// Creates a [`ModuleHandle`] to modify the module with named `name`.
     pub fn select(self, name: impl AsRef<str>) -> ModuleHandle {
         if let Some(index) = self.phases.iter().position(|p| p.name == name.as_ref()) {
