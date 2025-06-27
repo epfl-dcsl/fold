@@ -1,17 +1,13 @@
-use alloc::sync::Arc;
-
 use goblin::elf64::program_header::ProgramHeader;
 
 use crate::arena::Handle;
 use crate::elf::Object;
-use crate::file::{Mapping, MappingMut};
+use crate::file::Mapping;
 use crate::{Manifold, ShareMap};
 
 pub struct Segment {
     /// The mapping representing this segment in the object.
     pub mapping: Mapping,
-    /// If the segment is loadable, this is the mapping to the loaded
-    pub loaded_mapping: Option<Arc<MappingMut>>,
     /// The object containing this segment.
     pub obj: Handle<Object>,
     /// The type of the program header (ph_type).
@@ -50,7 +46,6 @@ impl Segment {
                     [header.p_offset as usize..(header.p_offset + header.p_filesz) as usize],
                 fd: None,
             },
-            loaded_mapping: None,
             obj: obj_idx,
             tag: header.p_type,
             flags: header.p_flags,

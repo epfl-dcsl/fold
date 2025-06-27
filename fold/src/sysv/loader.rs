@@ -1,5 +1,4 @@
 use alloc::boxed::Box;
-use alloc::sync::Arc;
 use core::ffi::c_void;
 
 use goblin::elf::program_header::PT_LOAD;
@@ -12,7 +11,8 @@ use crate::module::Module;
 use crate::object::Segment;
 use crate::share_map::ShareMapKey;
 
-pub const SYSV_LOADER_BASE_ADDR: ShareMapKey<usize> = ShareMapKey::new("sys_loader");
+pub const SYSV_LOADER_BASE_ADDR: ShareMapKey<usize> = ShareMapKey::new("sys_loader_base");
+pub const SYSV_LOADER_MAPPING: ShareMapKey<MappingMut> = ShareMapKey::new("sys_loader_mapping");
 
 pub struct SysvLoader;
 
@@ -100,10 +100,12 @@ impl Module for SysvLoader {
                     .write_bytes(0, s.mem_size - s.file_size);
             }
 
-            Arc::new(MappingMut::new(mapping_start as *mut u8, s.mem_size))
+            MappingMut::new(mapping_start as *mut u8, s.mem_size)
         };
 
-        fold.segments[segment].loaded_mapping = Some(new_mapping);
+        fold.segments[segment]
+            .shared
+            .insert(SYSV_LOADER_MAPPING, new_mapping);
 
         Ok(())
     }
