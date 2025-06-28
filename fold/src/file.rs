@@ -10,9 +10,9 @@ const S_IFDIR: u32 = 0x4000;
 /// A read-only memory region optionally backed by a file.
 pub struct Mapping {
     /// Mapped region, owned by the mapping
-   pub(crate) bytes: &'static [u8],
+    pub(crate) bytes: &'static [u8],
     /// File descriptor, if backed by a file
-    pub(crate)fd: Option<OwnedFd>,
+    pub(crate) fd: Option<OwnedFd>,
 }
 
 /// A read-write memory region.
