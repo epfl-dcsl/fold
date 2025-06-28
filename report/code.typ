@@ -27,8 +27,16 @@
   let start = i
   assert(i != code.len(), message: "Identifier " + ident + " not found")
 
+
   let brackets = 0
-  while start < code.len() {
+  while brackets == 0 and i < code.len() {
+    brackets += count(code.at(i), "{")
+    brackets -= count(code.at(i), "}")
+
+    i += 1
+  }
+
+  while i < code.len() {
     brackets += count(code.at(i), "{")
     brackets -= count(code.at(i), "}")
 

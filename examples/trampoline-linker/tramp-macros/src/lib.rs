@@ -17,11 +17,13 @@ pub fn hook(_attr: TokenStream, mut item: TokenStream) -> TokenStream {
         fn #trampoline_ident() {
             unsafe {
                 ::core::arch::asm!(
-                    // Save the resolved address of the symbol in the stack. The actual value written must be changed by the linker.
+                    // Save the resolved address of the symbol in the stack. The actual
+                    // value writtenmust be changed by the linker.
                     "mov rax,{}",
                     "mov [rsp],rax",
-                    // Stores all the registers potentially containing arguments on the stack. All other temporary registers are not
-                    // used across the call by the trampoline and thus do not need to be saved.
+                    // Stores all the registers potentially containing arguments on the
+                    // stack. All other temporary registers are not used across the call
+                    // by the trampoline and thus do not need to be saved.
                     "push rcx",
                     "push rdx",
                     "push rsi",
@@ -37,7 +39,8 @@ pub fn hook(_attr: TokenStream, mut item: TokenStream) -> TokenStream {
                     "pop rsi",
                     "pop rdx",
                     "pop rcx",
-                    // Recovers the actual symbol to jump to, and jump there will passing the return address of the current function
+                    // Recovers the actual symbol to jump to, and jump there will passing
+                    // the return address of the current function
                     // frame to the callee.
                     "pop rbx",
                     "mov rax,[rsp]",

@@ -15,13 +15,14 @@ use goblin::elf64::dynamic::Dyn;
 use log::trace;
 use rustix::fs;
 
+use crate::arena::Handle;
 use crate::elf::ElfItemIterator;
+use crate::file;
 use crate::manifold::Manifold;
 use crate::module::Module;
-use crate::object::section::SectionT;
+use crate::object::{Object, SectionT};
 use crate::share_map::ShareMapKey;
 use crate::sysv::error::SysvError;
-use crate::{file, Handle, Object};
 
 /// Returns the name of all dependencies of a given object
 fn read_deps(obj: &Object, manifold: &Manifold) -> Result<Vec<CString>, SysvError> {

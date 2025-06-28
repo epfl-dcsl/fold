@@ -2,11 +2,11 @@ use alloc::boxed::Box;
 
 use alloc::vec;
 use alloc::vec::Vec;
-use fold::manifold::Manifold;
-use fold::module::Module;
-use fold::object::Object;
-use fold::share_map::ShareMapKey;
-use fold::Handle;
+use fold::Manifold;
+use fold::Module;
+use fold::ShareMapKey;
+use fold::arena::Handle;
+use fold::elf::Object;
 
 const SYS_WRITE: u32 = 1;
 const SYS_WRITEV: u32 = 20;
@@ -42,14 +42,15 @@ impl Module for SysCollect {
         let mut filter = vec![];
 
         // Combine filters for write and exit
-        for o in obj.symbols(manifold) {
-            if let Ok((_sym, name)) = o
-                && name.to_string_lossy().contains("puts") {
-                    filter.push(SYS_WRITEV);
-                    filter.push(SYS_WRITE);
-                    filter.push(SYS_IOCTL);
-                    filter.push(SYS_EXIT_GROUP);
-                }
+        for symbol in obj.symbols(manifold) {
+            if let Ok((_sym, name)) = symbol
+                && name.to_string_lossy().contains("puts")
+            {
+                filter.push(SYS_WRITEV);
+                filter.push(SYS_WRITE);
+                filter.push(SYS_IOCTL);
+                filter.push(SYS_EXIT_GROUP);
+            }
         }
 
         log::info!("Identified syscall(s) needed: {filter:?}");

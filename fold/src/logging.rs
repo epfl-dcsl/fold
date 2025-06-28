@@ -1,3 +1,5 @@
+//! Re-implementation of log and print macros in a no-std context.
+
 use core::fmt;
 use core::sync::atomic::{AtomicBool, Ordering};
 
@@ -6,7 +8,8 @@ use rustix::{io, stdio};
 
 // ———————————————————————————————— Println ————————————————————————————————— //
 
-pub struct Stdout {}
+/// Standard output stream.
+pub struct Stdout;
 
 impl fmt::Write for Stdout {
     fn write_str(&mut self, s: &str) -> fmt::Result {
@@ -17,6 +20,7 @@ impl fmt::Write for Stdout {
 }
 
 #[macro_export]
+/// Reimplementation of `std::println` in no-std context.
 macro_rules! println {
     ($($arg:tt)*) => {
         {
@@ -27,6 +31,7 @@ macro_rules! println {
 }
 
 #[macro_export]
+/// Reimplementation of `std::dbg` in no-std context.
 macro_rules! dbg {
     ($arg:expr) => {{
         use ::core::fmt::Write;
@@ -37,9 +42,9 @@ macro_rules! dbg {
 
 // ————————————————————————————————— Logger ————————————————————————————————— //
 
-struct Logger {}
+struct Logger;
 
-static LOGGER: Logger = Logger {};
+static LOGGER: Logger = Logger;
 static IS_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 impl log::Log for Logger {
@@ -54,6 +59,7 @@ impl log::Log for Logger {
     fn flush(&self) {}
 }
 
+/// Initializes the global logger with a given [`LevelFilter`].
 pub fn init(level: LevelFilter) {
     match IS_INITIALIZED.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst) {
         Ok(_) => {

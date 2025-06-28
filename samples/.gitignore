@@ -2,7 +2,6 @@
 *.so
 
 hello-dl
-hello-init-array
 hello-mov-pie
 hello-pie
 hello

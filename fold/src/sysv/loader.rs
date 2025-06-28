@@ -1,17 +1,18 @@
 use alloc::boxed::Box;
-use alloc::sync::Arc;
 use core::ffi::c_void;
 
 use goblin::elf::program_header::PT_LOAD;
 use rustix::mm::{self, MapFlags, ProtFlags};
 
+use crate::arena::Handle;
 use crate::file::MappingMut;
 use crate::manifold::Manifold;
 use crate::module::Module;
+use crate::object::Segment;
 use crate::share_map::ShareMapKey;
-use crate::{Handle, Segment};
 
-pub const SYSV_LOADER_BASE_ADDR: ShareMapKey<usize> = ShareMapKey::new("sys_loader");
+pub const SYSV_LOADER_BASE_ADDR: ShareMapKey<usize> = ShareMapKey::new("sys_loader_base");
+pub const SYSV_LOADER_MAPPING: ShareMapKey<MappingMut> = ShareMapKey::new("sys_loader_mapping");
 
 pub struct SysvLoader;
 
@@ -60,8 +61,8 @@ impl Module for SysvLoader {
                             .iter()
                             .map(|s| &fold.segments[*s])
                             .filter(|s| s.tag == PT_LOAD)
-                            .max_by_key(|s| s.vaddr)
                             .map(|s| s.vaddr + s.mem_size)
+                            .max()
                             .unwrap_or(0)
                     } else {
                         0
@@ -78,18 +79,19 @@ impl Module for SysvLoader {
 
             log::info!("Segment loaded at 0x{:x}", mapping as usize);
 
-            // Probably PIE
-            if obj.shared.get(SYSV_LOADER_BASE_ADDR).is_none() && addr == 0 {
-                obj.shared.insert(SYSV_LOADER_BASE_ADDR, mapping as usize)
+            // Store a MappingMut instead ?
+            if obj.shared.get(SYSV_LOADER_BASE_ADDR).is_none() {
+                obj.shared.insert(
+                    SYSV_LOADER_BASE_ADDR,
+                    // If addr == 0, probably PIE
+                    if addr == 0 { mapping as usize } else { 0 },
+                )
             }
 
             let mapping_start = mapping.add(addr & 0xfff);
 
             // Copy segment data
-            mapping_start.copy_from(
-                ((obj.raw().as_ptr() as usize) + s.offset) as *mut c_void,
-                s.file_size,
-            );
+            mapping_start.copy_from(s.mapping.bytes().as_ptr() as *mut c_void, s.file_size);
 
             if s.mem_size > s.file_size {
                 // Zero memory after segment
@@ -98,10 +100,12 @@ impl Module for SysvLoader {
                     .write_bytes(0, s.mem_size - s.file_size);
             }
 
-            Arc::new(MappingMut::new(mapping_start as *mut u8, s.mem_size))
+            MappingMut::new(mapping_start as *mut u8, s.mem_size)
         };
 
-        fold.segments[segment].loaded_mapping = Some(new_mapping);
+        fold.segments[segment]
+            .shared
+            .insert(SYSV_LOADER_MAPPING, new_mapping);
 
         Ok(())
     }

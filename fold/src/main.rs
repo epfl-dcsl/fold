@@ -4,14 +4,9 @@
 extern crate alloc;
 extern crate fold;
 
-use fold::{exit, init_logging, Env, Exit};
+use fold::{chain, Fold};
 
-fold::entry!(entry);
-
-fn entry(env: Env) -> ! {
-    init_logging(log::LevelFilter::Trace);
-
-    fold::default_chain("fold", env).run();
-
-    exit(Exit::Success);
+#[chain(log = Trace)]
+fn chain(chain: Fold) -> Fold {
+    chain
 }

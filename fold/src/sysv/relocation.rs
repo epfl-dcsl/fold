@@ -9,13 +9,13 @@ use goblin::elf::section_header::SHT_RELA;
 use goblin::elf::sym::STB_WEAK;
 use goblin::elf64::reloc::{self, Rela};
 
+use crate::arena::Handle;
 use crate::elf::ElfItemIterator;
 use crate::manifold::Manifold;
 use crate::module::Module;
-use crate::object::section::SectionT;
+use crate::object::{Object, Section, SectionT};
 use crate::sysv::error::SysvError;
 use crate::sysv::loader::SYSV_LOADER_BASE_ADDR;
-use crate::{Handle, Object, Section};
 
 macro_rules! apply_reloc {
     ($addr:expr, $value:expr, $type:ty) => {

@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use core::assert_eq;
     use std::process::{Command, Stdio};
 
     #[test]
@@ -56,14 +55,6 @@ mod tests {
     }
 
     #[test]
-    fn hello_init_array() {
-        let output = Command::new("../samples/hello-init-array")
-            .output()
-            .expect("Failed to execute process");
-        assert!(String::from_utf8_lossy(&output.stdout).contains("hi there"));
-    }
-
-    #[test]
     fn hello_math() {
         let output = Command::new("../samples/hello-math")
             .output()
@@ -101,12 +92,12 @@ mod tests {
             .stdout(Stdio::null())
             .status()
             .expect("Failed to execute process");
-        assert_eq!(status.success(), false);
+        assert!(!status.success());
     }
 
     #[test]
     fn seccomp_symbol_detection() {
-        let output = Command::new("../samples/hello-c")
+        let output = Command::new("../samples/seccomp-sym-hello-c")
             .output()
             .expect("Failed to execute process");
         assert!(String::from_utf8_lossy(&output.stdout).contains("hi there"));

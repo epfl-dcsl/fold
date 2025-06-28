@@ -6,8 +6,11 @@ use crate::env::Env;
 use crate::exit::exit_error;
 use crate::println;
 
+/// Execution context of the linker.
 pub struct Config {
+    /// Path of the executable to link.
     pub target: &'static CStr,
+    /// Execution context.
     pub env: Env,
 }
 
@@ -35,7 +38,7 @@ fn usage() {
     println!("Usage: spidl <target> [args]");
 }
 
-/// Find the program to load.
+/// Find the program to link.
 fn find_target(args: &[&'static CStr], loader_name: &str) -> Option<&'static CStr> {
     assert!(!args.is_empty());
 

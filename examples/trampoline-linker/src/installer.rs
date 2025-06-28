@@ -11,12 +11,11 @@ use goblin::elf::section_header::SHT_RELA;
 use goblin::elf64::reloc::{self, Rela};
 
 use fold::elf::ElfItemIterator;
-use fold::manifold::Manifold;
-use fold::module::Module;
-use fold::object::section::SectionT;
+use fold::elf::{Object, Section, SectionT};
 use fold::sysv::error::SysvError;
 use fold::sysv::loader::SYSV_LOADER_BASE_ADDR;
-use fold::{Handle, Object, Section, println};
+use fold::{Manifold, Module};
+use fold::{arena::Handle, println};
 use rustix::mm::{self, MprotectFlags};
 
 macro_rules! apply_reloc {

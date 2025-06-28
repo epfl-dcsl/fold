@@ -4,44 +4,61 @@ use core::fmt;
 
 // ——————————————————————————— Auxiliary Vectors ———————————————————————————— //
 
-/// Auxiliary Vector
 #[derive(Debug)]
 #[repr(C)]
+/// An entry in the auxiliary vector.
+///
+/// The auxiliary vector conveys information from the operating system to the application about the execution context
+/// (see the [Linux documentation](<https://refspecs.linuxfoundation.org/LSB_1.3.0/IA64/spec/auxiliaryvector.html>)).
 pub struct Auxv {
+    /// Type of the entry.
     pub typ: AuxvType,
+    /// Value of the entry.
     pub value: u64,
 }
 
-/// The type of an auxiliary vector
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
+/// Type of an auxiliary vector ([`Auxv`]) entry.
 pub struct AuxvType(u64);
 
 impl AuxvType {
-    // Marks end of auxiliary vector list
+    /// Marks end of auxiliary vector list.
     pub const NULL: Self = Self(0);
-    // Address of the first program header in memory
+    /// Address of the first program header in memory.
     pub const PHDR: Self = Self(3);
-    // Number of program headers
+    /// Number of program headers.
     pub const PHNUM: Self = Self(5);
-    // Address where the interpreter (dynamic loader) is mapped
+    /// Address where the interpreter (dynamic loader) is mapped.
     pub const BASE: Self = Self(7);
-    // Entry point of program
+    /// Entry point of program.
     pub const ENTRY: Self = Self(9);
+    // TODO: complete with missing types
+    // (<https://refspecs.linuxfoundation.org/LSB_1.3.0/IA64/spec/auxiliaryvector.html>).
 }
 
 // —————————————————————————————— Environment ——————————————————————————————— //
 
+/// Stores the environment of the process.
 pub struct Env {
+    /// CLI arguments given to the process.
     pub args: Vec<&'static CStr>,
+    /// List of environment variables of the process, stored in `key=value` format. TODO: change to a tuple of
+    /// `(key, value)` or even a [`alloc::collections::BTreeMap`] ?
     pub envp: Vec<&'static CStr>,
+    /// Auxiliary vector.
     pub auxv: &'static [Auxv],
+    /// Pointer to the start of the null-terminated argument array.
     pub raw_argv: usize,
+    /// Pointer to the start of the null-terminated environments variable array.
     pub raw_envp: usize,
 }
 
 impl Env {
-    #[allow(clippy::missing_safety_doc)]
+    /// Construct an [`Env`] from the data given by the kernel at the start of execution.
+    ///
+    /// # Safety
+    /// `argv` must be a pointer to the start of the `argv` array.
     pub unsafe fn from_argv(argv: usize) -> Self {
         let (args, ptr) = Self::collect_strings(argv as *const _);
         let ptr = ptr.add(1);

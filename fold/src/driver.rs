@@ -4,7 +4,6 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 use goblin::elf::program_header::PT_LOAD;
-use goblin::elf::section_header::{SHT_FINI_ARRAY, SHT_INIT_ARRAY};
 
 use crate::arena::Handle;
 use crate::cli::Config;
@@ -12,21 +11,30 @@ use crate::env::Env;
 use crate::filters::Filter;
 use crate::manifold::Manifold;
 use crate::module::Module;
+use crate::object::Object;
 use crate::sysv::collector::{SysvRemappingCollector, SYSV_COLLECTOR_SEARCH_PATHS_KEY};
-use crate::sysv::init_array::SysvInitArray;
 use crate::sysv::loader::SysvLoader;
 use crate::sysv::protect::SysvProtect;
 use crate::sysv::relocation::SysvReloc;
 use crate::sysv::start::SysvStart;
 use crate::sysv::tls::SysvTls;
-use crate::{cli, file, Object};
+use crate::{cli, file};
 
 type ModuleRef = Box<dyn Module>;
 
 // —————————————————————————————— Fold Driver ——————————————————————————————— //
 
+/// Module chain that can be applied to an ELF object file.
+///
+/// It consists of several [`Module`] that are applied successively to a [`Manifold`]. Each module is registered along
+/// with a [`Filter`], selecting on which elements of the [`Manifold`] the module must be applied to.
+///
+/// `Fold` can be constructed with either [`new`], [`default_chain`] or [`chain`][crate::chain], then modules can be registered
+/// with the object's methods. Modules can also be removed or modified, allowing to easily modify already existing
+/// chain.
 pub struct Fold {
     config: Config,
+    // TODO: move to the loader constructor ?
     search_path: Vec<String>,
     phases: Vec<Phase>,
 }
@@ -37,96 +45,90 @@ struct Phase {
     filter: Filter,
 }
 
-pub fn new(env: Env, loader_name: &str) -> Fold {
-    log::info!("Hello, world!");
-    log::info!("Args: {:?}", &env.args);
-
-    let config = cli::parse(env, loader_name);
-
-    let cwd = if let Some(last_delim) = config.target.to_string_lossy().rfind('/') {
-        &config.target.to_string_lossy()[..last_delim]
-    } else {
-        "."
-    };
-
-    log::info!(r#"adding cwd to path: "{cwd}""#);
-
-    let search_path = Vec::from(&[cwd.to_owned()]);
-
-    Fold {
-        config,
-        search_path,
-        phases: Vec::new(),
-    }
-}
-
-// Return default sysv chain
-pub fn default_chain(loader_name: &str, env: Env) -> Fold {
-    new(env, loader_name)
-        .search_paths(["/lib", "/lib64", "/usr/lib/"].iter())
-        .register(
-            "collect",
-            SysvRemappingCollector::new()
-                .replace("libc.so", "libc.so")
-                .drop_multiple(&[
-                    "ld-linux-x86-64.so",
-                    "libcrypt.so",
-                    "libdl.so",
-                    "libm.so",
-                    "libpthread.so",
-                    "libresolv.so",
-                    "librt.so",
-                    "libutil.so",
-                    "libxnet.so",
-                ]),
-            Filter::any_object(),
-        )
-        .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
-        .register("tls", SysvTls, Filter::manifold())
-        .register(
-            "relocation",
-            SysvReloc::new(),
-            Filter::any_object(), // TODO: match only elf
-        )
-        .register("protect", SysvProtect, Filter::segment_type(PT_LOAD))
-        .register(
-            "init array",
-            SysvInitArray,
-            Filter::section_type(SHT_INIT_ARRAY),
-        )
-        .register(
-            "fini array",
-            SysvInitArray,
-            Filter::section_type(SHT_FINI_ARRAY),
-        )
-        .register("start", SysvStart, Filter::any_object())
-}
-
-// ————————————————————————————————— Phases ————————————————————————————————— //
-
 impl Fold {
-    /// Creates a `PhaseHandle` to modify the phase with named `name`.
-    pub fn select(self, name: impl AsRef<str>) -> PhaseHandle {
+    /// Creates an empty [`Fold`] from the execution context (`env`) and the name of the linker's binary (`linker_name`).
+    ///
+    /// `linker_name` is required in order to identify whether the linker was explicitely invoked (`/lib/linker exe`) or
+    /// implicitely by the kernel (`./exe`).
+    pub fn new(env: Env, linker_name: &str) -> Fold {
+        log::info!("Hello, world!");
+        log::info!("Args: {:?}", &env.args);
+
+        let config = cli::parse(env, linker_name);
+
+        let cwd = if let Some(last_delim) = config.target.to_string_lossy().rfind('/') {
+            &config.target.to_string_lossy()[..last_delim]
+        } else {
+            "."
+        };
+
+        log::info!(r#"adding cwd to path: "{cwd}""#);
+
+        let search_path = Vec::from(&[cwd.to_owned()]);
+
+        Fold {
+            config,
+            search_path,
+            phases: Vec::new(),
+        }
+    }
+
+    /// Creates a [`Fold`] with a default chain of [`sysv`][crate::sysv] modules, able to link x86 executables
+    ///
+    /// See [`new`] for details on the arguments.
+    pub fn default_chain(env: Env, linker_name: &str) -> Fold {
+        Self::new(env, linker_name)
+            .search_paths(["musl/lib", "/lib", "/lib64", "/usr/lib/"].iter())
+            .register(
+                "collect",
+                SysvRemappingCollector::new()
+                    .replace("libc.so", "libc.so")
+                    .drop_multiple(&[
+                        "ld-linux-x86-64.so",
+                        "libcrypt.so",
+                        "libdl.so",
+                        "libm.so",
+                        "libpthread.so",
+                        "libresolv.so",
+                        "librt.so",
+                        "libutil.so",
+                        "libxnet.so",
+                    ]),
+                Filter::any_object(),
+            )
+            .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
+            .register("tls", SysvTls, Filter::manifold())
+            .register(
+                "relocation",
+                SysvReloc::new(),
+                Filter::any_object(), // TODO: match only elf
+            )
+            .register("protect", SysvProtect, Filter::segment_type(PT_LOAD))
+            .register("start", SysvStart, Filter::any_object())
+    }
+
+    /// Creates a [`ModuleHandle`] to modify the module with named `name`.
+    pub fn select(self, name: impl AsRef<str>) -> ModuleHandle {
         if let Some(index) = self.phases.iter().position(|p| p.name == name.as_ref()) {
-            PhaseHandle {
+            ModuleHandle {
                 fold: self,
                 phase: index,
             }
         } else {
-            panic!("Unable to find phase \"{}\"", name.as_ref());
+            panic!("Unable to find module \"{}\"", name.as_ref());
         }
     }
 
-    /// Identifies the phase `name` and update it using the provided mapping function, returning the output of the mapping
-    /// function.
-    pub fn apply<F: FnMut(PhaseHandle) -> R, R>(self, name: impl AsRef<str>, mut map: F) -> R {
+    /// Identifies the module registered as `name` and update it using the provided mapping function, returning the
+    /// output of the mapping function.
+    pub fn apply<F: FnMut(ModuleHandle) -> R, R>(self, name: impl AsRef<str>, mut map: F) -> R {
         map(self.select(name))
     }
 
-    /// Creates a `PositionedPhaseHandle` at the start of the chain.
-    pub fn front(self) -> PositionedPhaseHandle {
-        PositionedPhaseHandle {
-            hdx: PhaseHandle {
+    /// Creates a [`PositionedModuleHandle`] at the start of the chain.
+    pub fn front(self) -> PositionedModuleHandle {
+        PositionedModuleHandle {
+            hdx: ModuleHandle {
                 fold: self,
                 phase: 0,
             },
@@ -134,11 +136,11 @@ impl Fold {
         }
     }
 
-    /// Creates a `PositionedPhaseHandle` at the end of the chain.
-    pub fn back(self) -> PositionedPhaseHandle {
+    /// Creates a [`PositionedModuleHandle`] at the end of the chain.
+    pub fn back(self) -> PositionedModuleHandle {
         let phase = self.phases.len() - 1;
-        PositionedPhaseHandle {
-            hdx: PhaseHandle { fold: self, phase },
+        PositionedModuleHandle {
+            hdx: ModuleHandle { fold: self, phase },
             position: CursorPosition::After,
         }
     }
@@ -153,17 +155,19 @@ impl Fold {
         self.phases.push(Phase {
             name: name.as_ref().to_owned(),
             module: Box::new(module),
-            filter: item.into(),
+            filter: item,
         });
 
         self
     }
 
+    /// Add an element in the dependency search path.
     pub fn search_path(mut self, path: impl AsRef<str>) -> Self {
         self.search_path.push(path.as_ref().to_string());
         self
     }
 
+    /// Add elements in the dependency search path.
     pub fn search_paths<I, S>(mut self, paths: I) -> Self
     where
         I: Iterator<Item = S>,
@@ -174,6 +178,7 @@ impl Fold {
         self
     }
 
+    /// Executes the [`Fold`] modules on a [`Manifold`] built from the execution context and target object file.
     pub fn run(mut self) {
         let mut manifold = Manifold::new(self.config.env);
 
@@ -270,21 +275,23 @@ impl Fold {
     }
 }
 
-/// Handle used to modify an already existing phase by either replacing it with another module or deleting it. It can
-/// also be positioned before or after the phase to insert new ones.
-pub struct PhaseHandle {
+/// Handle used to modify an already existing module in a [`Fold`].
+///
+/// It can replace it with another module or delete it. It may also be positioned before or after a module to insert new
+///  ones.
+pub struct ModuleHandle {
     fold: Fold,
     phase: usize,
 }
 
-impl PhaseHandle {
-    /// Deletes the selected phase, effectively removing it from the chain.
+impl ModuleHandle {
+    /// Deletes the selected module, effectively removing it from the chain.
     pub fn delete(mut self) -> Fold {
         self.fold.phases.remove(self.phase);
         self.fold
     }
 
-    /// Replaces the selected phase with a new name, module and filter.
+    /// Replaces the selected module with a new name, module and filter.
     pub fn replace(
         mut self,
         name: impl AsRef<str>,
@@ -295,24 +302,24 @@ impl PhaseHandle {
 
         phase.name = name.as_ref().to_owned();
         phase.module = Box::new(module);
-        phase.filter = item.into();
+        phase.filter = item;
 
         self.fold
     }
 
-    /// Creates a `PositionedPhaseHandle` handle between the selected one and the next one, allowing insertion of
-    /// phases to be executed after the selected one.
-    pub fn after(self) -> PositionedPhaseHandle {
-        PositionedPhaseHandle {
+    /// Creates a [`PositionedModuleHandle`] handle between the selected one and the next one, allowing insertion of
+    /// modules to be executed after the selected one.
+    pub fn after(self) -> PositionedModuleHandle {
+        PositionedModuleHandle {
             hdx: self,
             position: CursorPosition::After,
         }
     }
 
-    /// Creates a `PositionedPhaseHandle` handle between the selected one and the previous one, allowing insertion of
-    /// phases to be executed before the selected one.
-    pub fn before(self) -> PositionedPhaseHandle {
-        PositionedPhaseHandle {
+    /// Creates a [`PositionedModuleHandle`] handle between the selected one and the previous one, allowing insertion of
+    /// modules to be executed before the selected one.
+    pub fn before(self) -> PositionedModuleHandle {
+        PositionedModuleHandle {
             hdx: self,
             position: CursorPosition::Before,
         }
@@ -324,19 +331,19 @@ enum CursorPosition {
     After,
 }
 
-/// Handle used to new phases relatively to other ones.
-pub struct PositionedPhaseHandle {
-    hdx: PhaseHandle,
+/// Handle used to new modules relatively to other ones.
+pub struct PositionedModuleHandle {
+    hdx: ModuleHandle,
     position: CursorPosition,
 }
 
-impl PositionedPhaseHandle {
-    /// Returns the original `PhaseHandle`.
-    pub fn as_handle(self) -> PhaseHandle {
+impl PositionedModuleHandle {
+    /// Returns the original [`ModuleHandle`].
+    pub fn as_handle(self) -> ModuleHandle {
         self.hdx
     }
 
-    /// Registers a new phase at the position of the handle.
+    /// Registers a new module at the position of the handle.
     pub fn register(
         mut self,
         name: impl AsRef<str>,
@@ -352,7 +359,7 @@ impl PositionedPhaseHandle {
             Phase {
                 name: name.as_ref().to_string(),
                 module: Box::new(module),
-                filter: item.into(),
+                filter: item,
             },
         );
 

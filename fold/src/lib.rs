@@ -3,35 +3,57 @@
 #![allow(dead_code)]
 
 extern crate alloc;
+extern crate macros;
 
 use core::panic::PanicInfo;
 
-pub mod allocator;
+mod allocator;
+mod cli;
+mod driver;
+mod env;
+mod error;
+mod exit;
+mod filters;
+mod manifold;
+mod module;
+mod object;
+mod share_map;
+
 pub mod arena;
-pub mod cli;
-pub mod driver;
 pub mod elf;
-pub mod env;
-pub mod error;
-pub mod exit;
 pub mod file;
-pub mod filters;
 pub mod logging;
-pub mod manifold;
-pub mod module;
-pub mod object;
-pub mod share_map;
 pub mod sysv;
 
-pub use arena::Handle;
-pub use driver::{default_chain, new};
-pub use env::Env;
-pub use exit::{exit, exit_error, Exit};
-pub use logging::init as init_logging;
-pub use object::section::{Section, SectionT, StringTableSection, SymbolTableSection};
-pub use object::{Object, Segment};
+pub use allocator::*;
+pub use cli::*;
+pub use driver::*;
+pub use env::*;
+pub use error::*;
+pub use exit::*;
+pub use filters::*;
+pub use log;
+pub use macros::chain;
+pub use manifold::*;
+pub use module::*;
+pub use share_map::*;
 
 #[macro_export]
+/// Creates an entrypoint from a function receiving an [`Env`] as parameter. Superseeded by the [`chain`] macro.
+///
+/// ## Example
+///
+/// ```
+/// fold::entry!(entry);
+///
+/// fn entry(env: fold::Env) -> ! {
+///     fold::logging::init(log::LevelFilter::Trace);
+///
+///     fold::default_chain(env!("CARGO_BIN_NAME"), env).run();
+///
+///     fold::exit(fold::Exit::Success)
+/// }
+/// ```
 macro_rules! entry {
     ($path:path) => {
         /// Dynamic linker entry point.
@@ -67,6 +89,7 @@ macro_rules! entry {
 #[doc(hidden)]
 pub unsafe fn init(argv: usize) -> Env {
     allocator::init_allocator();
+    println!("{}", "hi");
     Env::from_argv(argv)
 }
 
