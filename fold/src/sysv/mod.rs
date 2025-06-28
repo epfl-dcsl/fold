@@ -1,5 +1,5 @@
 //! Modules to process System V ABI compliant executables.
-//! 
+//!
 //! For more details, see the project's report.
 
 pub mod collector;

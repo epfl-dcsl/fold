@@ -4,10 +4,11 @@ use core::ffi::c_void;
 use goblin::elf::program_header::{PF_R, PF_W, PF_X};
 use rustix::mm::{self, MprotectFlags};
 
+use crate::arena::Handle;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::Segment;
-use crate::arena::Handle;
+use crate::sysv::loader::SYSV_LOADER_MAPPING;
 
 #[derive(Default)]
 pub struct SysvProtect;
@@ -39,7 +40,7 @@ impl Module for SysvProtect {
         log::info!("Protecting segment...");
         let segment = &fold.segments[segment];
 
-        if let Some(mapping) = segment.loaded_mapping.as_ref() {
+        if let Some(mapping) = segment.shared.get(SYSV_LOADER_MAPPING) {
             if segment.mem_size == 0 {
                 return Ok(());
             }

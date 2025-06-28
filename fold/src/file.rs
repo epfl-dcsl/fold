@@ -10,9 +10,9 @@ const S_IFDIR: u32 = 0x4000;
 /// A read-only memory region optionally backed by a file.
 pub struct Mapping {
     /// Mapped region, owned by the mapping
-    bytes: &'static [u8],
+    pub(crate) bytes: &'static [u8],
     /// File descriptor, if backed by a file
-    _fd: Option<OwnedFd>,
+    pub(crate) fd: Option<OwnedFd>,
 }
 
 /// A read-write memory region.
@@ -25,12 +25,12 @@ impl Mapping {
     pub(crate) unsafe fn new(ptr: *const u8, len: usize, fd: Option<OwnedFd>) -> Self {
         Self {
             bytes: core::slice::from_raw_parts(ptr, len),
-            _fd: fd,
+            fd,
         }
     }
 
     /// Returns the mapping's slice.
-    pub fn bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> &'static [u8] {
         self.bytes
     }
 }

@@ -1,16 +1,16 @@
 use alloc::ffi::CString;
-use alloc::sync::Arc;
 use core::ffi::CStr;
 
 use goblin::elf::section_header::*;
 use goblin::elf64::section_header::SectionHeader;
 
 use super::Object;
+use crate::arena::Handle;
 use crate::elf::ElfItemIterator;
 use crate::error::FoldError;
 use crate::file::Mapping;
 use crate::manifold::Manifold;
-use crate::arena::Handle;
+use crate::ShareMap;
 
 macro_rules! derive_sectiont {
     ($struct:ty) => {
@@ -42,8 +42,8 @@ macro_rules! as_section {
 ///
 /// All the attributes of the section can be accessed directly. For more complex manipulation, the `as_*` methods can be used to create tag-checked wrappers around the section.
 pub struct Section {
-    /// The mapping of the object containing this section. TODO: change to use the section's slice instead.
-    pub mapping: Arc<Mapping>,
+    /// The mapping representing this section in the object.
+    pub mapping: Mapping,
     /// The object containing this section.
     pub obj: Handle<Object>,
     /// Name of the section
@@ -70,6 +70,9 @@ pub struct Section {
     pub info: u32,
     /// Size of the elements contained in the section, if applicable.
     pub entity_size: usize,
+
+    /// Shared memory specific to this object.
+    pub shared: ShareMap,
 }
 
 impl Section {
@@ -87,7 +90,11 @@ impl Section {
         let _addr_align = header.sh_addralign;
 
         Self {
-            mapping: mapping.clone(),
+            mapping: Mapping {
+                bytes: &mapping.bytes()
+                    [header.sh_offset as usize..(header.sh_offset + header.sh_size) as usize],
+                fd: None,
+            },
             obj: obj_idx,
             name: CString::default(),
             name_idx: header.sh_name,
@@ -101,6 +108,7 @@ impl Section {
             link_idk: header.sh_link,
             info: header.sh_info,
             entity_size: header.sh_entsize as usize,
+            shared: ShareMap::new(),
         }
     }
 
@@ -165,7 +173,7 @@ derive_sectiont!(StringTableSection<'_>);
 impl<'a> StringTableSection<'a> {
     /// Returns the symbol at the given offset in the table.
     pub fn get_symbol(&self, index: usize) -> Result<&'a CStr, FoldError> {
-        CStr::from_bytes_until_nul(&self.section.mapping.bytes()[(self.section.offset + index)..])
+        CStr::from_bytes_until_nul(&self.section.mapping.bytes()[index..])
             .map_err(|_| FoldError::InvalidString)
     }
 }

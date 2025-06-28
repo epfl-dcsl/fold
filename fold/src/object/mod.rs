@@ -12,13 +12,15 @@ use crate::arena::Handle;
 use crate::elf::{sym_bindings, ElfHeader, ElfItemIterator, ProgramHeader, SectionHeader};
 use crate::error::FoldError;
 use crate::exit::exit_error;
-use crate::file::{Mapping, MappingMut};
+use crate::file::Mapping;
 use crate::manifold::Manifold;
 use crate::share_map::ShareMap;
 
 mod section;
+mod segment;
 
 pub use section::*;
+pub use segment::*;
 
 // ———————————————————————————————— Objects ————————————————————————————————— //
 
@@ -236,60 +238,8 @@ impl Object {
     }
 }
 
-// ———————————————————————————————— Segments ———————————————————————————————— //
-
-pub struct Segment {
-    /// The mapping backing the object containing this segment. TODO: use segment mapping instead.
-    pub mapping: Arc<Mapping>,
-    /// If the segment is loadable, this is the mapping to the loaded
-    pub loaded_mapping: Option<Arc<MappingMut>>,
-    /// The object containing this segment.
-    pub obj: Handle<Object>,
-    /// The type of the program header (ph_type).
-    pub tag: u32,
-    /// Segment flags.
-    pub flags: u32,
-    /// Offset of the segment in the file.
-    pub offset: usize,
-    /// Virtual address of the segment.
-    pub vaddr: usize,
-    /// Physical address of the segment.
-    pub paddr: usize,
-    /// Size of the segment in the file.
-    pub file_size: usize,
-    /// Size of the segment in memory.
-    pub mem_size: usize,
-    /// Required alignment for the section.
-    pub align: usize,
-}
-
-impl Segment {
-    pub(crate) fn new(
-        header: &ProgramHeader,
-        obj_idx: Handle<Object>,
-        manifold: &Manifold,
-    ) -> Self {
-        let obj = &manifold[obj_idx];
-        let mapping = &obj.mapping;
-
-        Self {
-            mapping: mapping.clone(),
-            loaded_mapping: None,
-            obj: obj_idx,
-            tag: header.p_type,
-            flags: header.p_flags,
-            offset: header.p_offset as usize,
-            vaddr: header.p_vaddr as usize,
-            paddr: header.p_paddr as usize,
-            file_size: header.p_filesz as usize,
-            mem_size: header.p_memsz as usize,
-            align: header.p_align as usize,
-        }
-    }
-}
-
-// ———————————————————————————————— Helpers ————————————————————————————————— //
-
+/// Returns a view of the given `bytes` as an [`ElfHeader`]. The `bytes` slice should have a length of at least
+/// `sizeof(ElfHeader) == 64`.
 fn as_header(bytes: &[u8]) -> &ElfHeader {
     const HEADER_SIZE: usize = core::mem::size_of::<ElfHeader>();
     let bytes = bytes[0..HEADER_SIZE].try_into().unwrap();
