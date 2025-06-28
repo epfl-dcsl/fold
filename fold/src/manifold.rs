@@ -13,10 +13,9 @@ use crate::arena::{Arena, Handle};
 use crate::elf::sym_bindings;
 use crate::error::FoldError;
 use crate::file::Mapping;
-use crate::object::Section;
-use crate::object::{Object, Segment};
+use crate::object::{Object, Section, Segment};
 use crate::share_map::ShareMap;
-use crate::{dbg, Env};
+use crate::Env;
 
 // ———————————————————————————————— Manifold ———————————————————————————————— //
 
@@ -55,7 +54,6 @@ impl Manifold {
 
         let mut sections = Vec::with_capacity(obj.e_shnum as usize);
         for section in obj.section_headers() {
-            dbg!(section);
             let section = Section::new(section, obj_idx, self);
             let idx = self.sections.push(section);
             sections.push(idx);
