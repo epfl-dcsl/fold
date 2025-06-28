@@ -29,12 +29,12 @@ pub struct Manifold {
 }
 
 impl Manifold {
-    pub(crate) fn new(env: Env) -> Self {
+    pub(crate) fn new(env: Env, shared: ShareMap) -> Self {
         Self {
             objects: Arena::new(),
             sections: Arena::new(),
             segments: Arena::new(),
-            shared: ShareMap::new(),
+            shared,
             env,
         }
     }

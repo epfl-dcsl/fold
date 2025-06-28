@@ -1,7 +1,10 @@
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
+use alloc::collections::btree_map::BTreeMap;
+use alloc::ffi::CString;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use core::str::FromStr;
 
 use goblin::elf::program_header::PT_LOAD;
 
@@ -12,13 +15,15 @@ use crate::filters::Filter;
 use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::Object;
-use crate::sysv::collector::{SysvRemappingCollector, SYSV_COLLECTOR_SEARCH_PATHS_KEY};
+use crate::sysv::collector::{
+    SysvRemappingCollector, SYSV_COLLECTOR_REMAP_KEY, SYSV_COLLECTOR_SEARCH_PATHS_KEY,
+};
 use crate::sysv::loader::SysvLoader;
 use crate::sysv::protect::SysvProtect;
 use crate::sysv::relocation::SysvReloc;
 use crate::sysv::start::SysvStart;
 use crate::sysv::tls::SysvTls;
-use crate::{cli, file};
+use crate::{cli, file, ShareMap};
 
 type ModuleRef = Box<dyn Module>;
 
@@ -29,13 +34,12 @@ type ModuleRef = Box<dyn Module>;
 /// It consists of several [`Module`] that are applied successively to a [`Manifold`]. Each module is registered along
 /// with a [`Filter`], selecting on which elements of the [`Manifold`] the module must be applied to.
 ///
-/// `Fold` can be constructed with either [`new`], [`default_chain`] or [`chain`][crate::chain], then modules can be registered
+/// [`Fold`] can be constructed with either [`Fold::new`], [`Fold::default_chain`] or [`chain`][crate::chain], then modules can be registered
 /// with the object's methods. Modules can also be removed or modified, allowing to easily modify already existing
 /// chain.
 pub struct Fold {
     config: Config,
-    // TODO: move to the loader constructor ?
-    search_path: Vec<String>,
+    initial_share_map: ShareMap,
     phases: Vec<Phase>,
 }
 
@@ -56,44 +60,21 @@ impl Fold {
 
         let config = cli::parse(env, linker_name);
 
-        let cwd = if let Some(last_delim) = config.target.to_string_lossy().rfind('/') {
-            &config.target.to_string_lossy()[..last_delim]
-        } else {
-            "."
-        };
-
-        log::info!(r#"adding cwd to path: "{cwd}""#);
-
-        let search_path = Vec::from(&[cwd.to_owned()]);
-
         Fold {
             config,
-            search_path,
+            initial_share_map: ShareMap::new(),
             phases: Vec::new(),
         }
     }
 
     /// Creates a [`Fold`] with a default chain of [`sysv`][crate::sysv] modules, able to link x86 executables
     ///
-    /// See [`new`] for details on the arguments.
+    /// See [`Fold::new`] for details on the arguments.
     pub fn default_chain(env: Env, linker_name: &str) -> Fold {
-        Self::new(env, linker_name)
-            .search_paths(["musl/lib", "/lib", "/lib64", "/usr/lib/"].iter())
+        let mut fold = Self::new(env, linker_name)
             .register(
                 "collect",
-                SysvRemappingCollector::new()
-                    .replace("libc.so", "libc.so")
-                    .drop_multiple(&[
-                        "ld-linux-x86-64.so",
-                        "libcrypt.so",
-                        "libdl.so",
-                        "libm.so",
-                        "libpthread.so",
-                        "libresolv.so",
-                        "librt.so",
-                        "libutil.so",
-                        "libxnet.so",
-                    ]),
+                SysvRemappingCollector::new(),
                 Filter::any_object(),
             )
             .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
@@ -104,7 +85,57 @@ impl Fold {
                 Filter::any_object(), // TODO: match only elf
             )
             .register("protect", SysvProtect, Filter::segment_type(PT_LOAD))
-            .register("start", SysvStart, Filter::any_object())
+            .register("start", SysvStart, Filter::any_object());
+
+        // Compute the search paths for shared librairies.
+        {
+            let cwd = if let Some(last_delim) = fold.config.target.to_string_lossy().rfind('/') {
+                &fold.config.target.to_string_lossy()[..last_delim]
+            } else {
+                "."
+            };
+            fold.initial_share_map.insert(
+                SYSV_COLLECTOR_SEARCH_PATHS_KEY,
+                [cwd, "musl/lib", "/lib", "/lib64", "/usr/lib/"]
+                    .into_iter()
+                    .map(|s| s.to_owned())
+                    .collect(),
+            );
+        }
+
+        // Compute libc remapping to use musl
+        {
+            fn cs(s: &str) -> CString {
+                CString::from_str(s).unwrap()
+            }
+
+            // Replace the versionned libc (e.g. libc.so.6) present in the deps by musl's unversionned libc
+            let mut map = BTreeMap::new();
+            map.insert(
+                "libc.so".to_owned(),
+                Some(CString::from_str("libc.so").unwrap()),
+            );
+
+            let to_drop = [
+                "ld-linux-x86-64.so",
+                "libcrypt.so",
+                "libdl.so",
+                "libm.so",
+                "libpthread.so",
+                "libresolv.so",
+                "librt.so",
+                "libutil.so",
+                "libxnet.so",
+            ];
+
+            for d in to_drop {
+                map.insert(d.to_owned(), None);
+            }
+
+            fold.initial_share_map.insert(SYSV_COLLECTOR_REMAP_KEY, map);
+        }
+
+        fold
     }
 
     /// Creates a [`ModuleHandle`] to modify the module with named `name`.
@@ -161,26 +192,16 @@ impl Fold {
         self
     }
 
-    /// Add an element in the dependency search path.
-    pub fn search_path(mut self, path: impl AsRef<str>) -> Self {
-        self.search_path.push(path.as_ref().to_string());
-        self
-    }
-
-    /// Add elements in the dependency search path.
-    pub fn search_paths<I, S>(mut self, paths: I) -> Self
-    where
-        I: Iterator<Item = S>,
-        S: AsRef<str>,
-    {
-        self.search_path
-            .extend(paths.map(|s| s.as_ref().to_owned()));
-        self
+    /// A mutable reference to the initial [`ShareMap`].
+    ///
+    /// This can be used to add initial values to the [`Manifold::shared`] map used during [`run`][Fold::run].
+    pub fn share_map(&mut self) -> &mut ShareMap {
+        &mut self.initial_share_map
     }
 
     /// Executes the [`Fold`] modules on a [`Manifold`] built from the execution context and target object file.
     pub fn run(mut self) {
-        let mut manifold = Manifold::new(self.config.env);
+        let mut manifold = Manifold::new(self.config.env, self.initial_share_map);
 
         // Load target
         let target = self.config.target;
@@ -188,9 +209,6 @@ impl Fold {
         let file_fd = file::open_file_ro(target.to_bytes()).expect("Target is not a file");
         let file = file::map_file(file_fd);
         manifold.add_elf_file(file, target.to_owned());
-        manifold
-            .shared
-            .insert(SYSV_COLLECTOR_SEARCH_PATHS_KEY, self.search_path);
 
         // Execute each phase
         for phase in &mut self.phases {
