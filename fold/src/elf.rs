@@ -23,7 +23,6 @@ pub use crate::object::*;
 pub struct ElfItemIterator<'a, T> {
     raw: &'a [u8],
     idx: usize,
-    end: usize,
     item_size: usize,
     _marker: PhantomData<T>,
 }
@@ -38,13 +37,7 @@ impl<'a, T> ElfItemIterator<'a, T> {
     pub fn new(raw: &'a [u8], e_shoff: usize, e_shnum: u16, e_shentsize: u16) -> Self {
         assert_eq!(e_shentsize as usize, core::mem::size_of::<T>());
 
-        Self {
-            raw,
-            idx: e_shoff,
-            end: e_shoff + (e_shnum as usize * e_shentsize as usize),
-            item_size: e_shentsize as usize,
-            _marker: PhantomData,
-        }
+        Self::with_len(raw, e_shoff, e_shnum as usize * e_shentsize as usize)
     }
 
     /// Creates an iterator from an offset an a size.
@@ -56,9 +49,8 @@ impl<'a, T> ElfItemIterator<'a, T> {
         // TODO: check that alignment & size allows to pack them.
         let size = core::mem::size_of::<T>();
         Self {
-            raw,
-            idx: e_shoff,
-            end: e_shoff + e_shsize,
+            raw: &raw[e_shoff..e_shoff + e_shsize],
+            idx: 0,
             item_size: size,
             _marker: PhantomData,
         }
@@ -70,13 +62,12 @@ impl<'a, T> ElfItemIterator<'a, T> {
     /// - `sh`: The corresponding section header entry.
     pub fn from_section_header(raw: &'a [u8], sh: &SectionHeader) -> Self {
         assert_eq!(sh.sh_entsize as usize, core::mem::size_of::<T>());
-        Self {
+
+        Self::with_len(
             raw,
-            idx: sh.sh_offset as usize,
-            end: (sh.sh_offset + sh.sh_size) as usize,
-            item_size: sh.sh_entsize as usize,
-            _marker: PhantomData,
-        }
+            sh.sh_offset as usize,
+            (sh.sh_offset + sh.sh_size) as usize,
+        )
     }
 
     /// Creates an iterator over a section.
@@ -84,8 +75,7 @@ impl<'a, T> ElfItemIterator<'a, T> {
         assert_eq!({ sh.entity_size }, core::mem::size_of::<T>());
         Self {
             raw: sh.mapping.bytes(),
-            idx: sh.offset,
-            end: (sh.offset + sh.size),
+            idx: 0,
             item_size: sh.entity_size,
             _marker: PhantomData,
         }
@@ -100,7 +90,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let idx = self.idx;
-        if idx >= self.end {
+        if idx >= self.raw.len() {
             return None;
         }
 
@@ -116,7 +106,6 @@ impl<T> Clone for ElfItemIterator<'_, T> {
         Self {
             raw: self.raw,
             idx: self.idx,
-            end: self.end,
             item_size: self.item_size,
             _marker: PhantomData,
         }
