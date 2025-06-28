@@ -1,11 +1,11 @@
 use alloc::boxed::Box;
 use core::ffi::c_char;
 
+use fold::Manifold;
+use fold::Module;
 use fold::arena::Handle;
-use fold::manifold::Manifold;
-use fold::module::Module;
-use fold::object::Object;
-use syscalls::{syscall, Sysno};
+use fold::elf::Object;
+use syscalls::{Sysno, syscall};
 
 pub const EM_RISCV: u16 = 0xf3;
 

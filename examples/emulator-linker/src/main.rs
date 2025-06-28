@@ -7,19 +7,12 @@ extern crate fold;
 mod emulator;
 
 use emulator::Emulator;
-use fold::filters::Filter;
-use fold::{Env, Exit, exit, init_logging};
+use fold::Filter;
+use fold::Fold;
 
-fold::entry!(entry);
-
-fn entry(env: Env) -> ! {
-    init_logging(log::LevelFilter::Trace);
-
-    fold::default_chain("emulator-linker", env)
-        .select("collect")
+#[fold::chain]
+fn emulator_chain(fold: Fold) -> Fold {
+    fold.select("collect")
         .after()
         .register("architecture check", Emulator, Filter::any_object())
-        .run();
-
-    exit(Exit::Success);
 }
