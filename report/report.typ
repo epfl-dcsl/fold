@@ -32,9 +32,9 @@
       row-gutter: 0.4em,
       align: left,
       [Instructor:], [Prof. Édouard Bugnion],
-      [Teaching Assistants:], [Charly Castes & Yuchen Qian],
+      [Teaching Assistants:], [Charly Castes],
       [Laboratory:], [Data Center Systems Lab at EPFL],
-      [Date:], [Spring semester 2023],
+      [Date:], [Spring semester 2025],
       [Faculty:], [School of Computer and Communication Sciences, EPFL],
     )]
 
@@ -69,6 +69,8 @@ An interesting observation we can make on the design of Linux is that all proces
 
 However, existing loaders like GNU's or Musl's are very complex pieces of codes, intertwined with their respective standard library, making them hard to tweak. For example, when launching a process with GNU's loader, it first starts by linking itself with `libc`, and vice-versa as they both depend on each other, before finally linking the actual executable.
 
+To leverage these observations, we present Fold, a framework to easily create new dynamic linkers. It provides a basic linker implementation for usual executables and an API to add customized operations, similarly to LLVM's compiler framework@llvm-framework.
+
 = Background
 
 == ELF
@@ -85,40 +87,79 @@ Before diving into Fold's inner working, let's first take a quick look at what a
 
     node((0, 1), "ELF Header", name: "elf-header", width: w),
     node((0, 2), "Program header table", name: "p-header", width: w),
-    node((0, 3), ".text", name: "test", width: w),
+    node((0, 3), ".text", name: "text", width: w),
     node((0, 4), ".rodata", name: "rodata", width: w),
-    node((0, 5), "...", name: "other", stroke: 0mm, width: w),
-    node((0, 6), ".data", name: "data", width: w),
+    node((0, 5), ".data", name: "data", width: w),
+    node((0, 6), "...", name: "other", stroke: 0mm, width: w),
     node((0, 7), "Section header table", name: "s-header", width: w),
 
-    node(enclose: (<s-header>), shape: brace.with(
-      dir: left,
-      length: 100% - 1em,
-      sep: 10pt,
-      label: "Information on\npurpose of data",
-    )),
+    node(
+      enclose: (<s-header>),
+      shape: brace.with(
+        dir: left,
+        length: 100% - 1em,
+        sep: 10pt,
+        label: align(right, "Information on how\n to interpret sections"),
+      ),
+    ),
 
+    node(
+      enclose: (<text>),
+      shape: brace.with(
+        dir: left,
+        length: 100% - 1.25em,
+        sep: 10pt,
+        label: "Section #1",
+      ),
+    ),
+    node(
+      enclose: (<rodata>),
+      shape: brace.with(
+        dir: left,
+        length: 100% - 1.25em,
+        sep: 10pt,
+        label: "Section #2",
+      ),
+    ),
+    node(
+      enclose: (<data>),
+      shape: brace.with(
+        dir: left,
+        length: 100% - 1.25em,
+        sep: 10pt,
+        label: "Section #3",
+      ),
+    ),
 
-    node(enclose: (<p-header>), shape: brace.with(
-      dir: right,
-      length: 100% - 1em,
-      sep: 10pt,
-      label: "Information on how\nto load segments",
-    )),
+    node(
+      enclose: (<p-header>),
+      shape: brace.with(
+        dir: right,
+        length: 100% - 1em,
+        sep: 10pt,
+        label: "Information on how\nto load segments",
+      ),
+    ),
 
-    node(enclose: (<test>, <rodata>), shape: brace.with(
-      dir: right,
-      length: 100% - 1em,
-      sep: 10pt,
-      label: [Code segment $(R - E)$],
-    )),
+    node(
+      enclose: (<text>, <rodata>),
+      shape: brace.with(
+        dir: right,
+        length: 100% - 1em,
+        sep: 10pt,
+        label: [Segment \#1 $(R - E)$],
+      ),
+    ),
 
-    node(enclose: (<other>, <data>), shape: brace.with(
-      dir: right,
-      length: 100% - 1em,
-      sep: 10pt,
-      label: [Data segment $(R W -)$],
-    )),
+    node(
+      enclose: (<other>, <data>),
+      shape: brace.with(
+        dir: right,
+        length: 100% - 1em,
+        sep: 10pt,
+        label: [Segment \#2 $(R W -)$],
+      ),
+    ),
   ),
 
   caption: [ELF File Structure],
@@ -151,7 +192,7 @@ OSDev wiki gives the following definition for System V ABI:
 
 The design discussed later in #ref(<elf-segment>) provides, among other things, a functional implementation of a loader that follow the System V ABI.
 
-== General flow
+== Linker workflow
 
 Fold's linkers should fit inside the flow of ELF execution described in #ref(<exec-elf>). On execution request for an ELF file, the kernel open the file and looks for the path of the interpreter -- _the dynamic linker_ -- required by the ELF inside the `.interp` section. It creates the process for the future executable, loads the dynamic linker into it and call it. The dynamic linker will identify the ELF file to load from the `argc`, open it, then parse it to retrieves loading and linking information. Finally, it will proceed to all the operations required by System V ABI in order to prepare the executable to be executed.
 
@@ -235,13 +276,13 @@ The idea behind Fold's design is similar to assembly lines: an object called the
     node((i, 1), "ELF Objects", width: w),
     node((i, 2), "Sections", width: w),
     node((i, 3), "Segments", width: w),
-    node((i, 4), "Share memory", width: w),
+    node((i, 4), "Shared memory", width: w),
 
     edge(<manifold.east>, <modules.west>, "=>", shift: 1em),
     edge(<manifold.east>, <modules.west>, "<=", shift: -1em),
 
     i += 2,
-    node((i, 0.5), enclose: ((i, j + 0), (i, 4)), name: "modules", stroke: none, align(top)[`SysV modules`]),
+    node((i, 0.5), enclose: ((i, j + 0), (i, 4)), name: "modules", stroke: none, align(top)[`Module chain`]),
     node((i, 1), "Collect", width: w),
     edge("->"),
     node((i, 2), "Load", width: w),
@@ -302,13 +343,73 @@ Modules can be applied to either the `Manifold`, objects, sections or segments. 
 
 When creating the chain of modules, filters are dissociated from the modules they are applied to allow to compose modules more freely. For example if one wanted to modify relocations how are processed for the initial executable file but not its dependences, they could register the usual relocation module with a filter excluding the executable object and a custom module only invoked on it.
 
-= System V Modules
+= System V Chain
 
-We will now go through the implementation of the modules interacting with System V ABI@system-v. These modules allow the default chain to link and execute various samples, from statically linked "Hello world!" up to a reduced yet fully functional build of SQLite.
+We will now go through the implementation of the modules interacting with System V ABI@system-v shown in @fig-sysv-chain. These modules allow the default chain to link and execute various samples, from statically linked "Hello world!" up to a reduced yet fully functional build of SQLite.
 
 As mentioned above, GNU's standard library is deeply intertwined with their linker, thus we moved away from this implementation and instead used Musl@musl's standard library. It is much more simple and lightweight, thus making it way easier to interact with. We also slightly modified such that it accepts being loaded by Fold instead of its own linker, as well as added some interfaces function for compatibility with executables compiled with `gcc`.
 
-We would also like to thank fasterlime and its incredible blog post "Making our own executable packer"@making-our-own-executable-packer, without which we could not have achieved such results.
+We would also like to thank fasterthanlime and its incredible blog post "Making our own executable packer"@making-our-own-executable-packer, without which we could not have achieved such results.
+
+== Chain overview
+
+@fig-sysv-chain shows the full default chain of System V modules, which is the one used in Fold's default build. As a first observation on the choices for Fold's design, the split into modules yields six modules with clearly defined tasks which only need to communicate few data one to another through the manifold's shared memory. Some modules such as the collector (@sysv-collector) can also leverage filters and shared memory to simplify their workflow by letting the Fold call them multiple times and passing data from one invocation to another.
+
+Precise filters can be assigned to most of the modules, simplifying the work done by the module itself. It is important to note that the filter for thread-local storage may be improved when implementing the complete behavior for this module (see @future-work). 
+
+
+#figure(
+  diagram(
+    node-stroke: .1em,
+    spacing: 6mm,
+    let w = 40mm,
+    let i = 0,
+
+    node((i, 1.5), enclose: ((i, 1), (i, 5)), name: "manifold", align(top)[`Manifold`]),
+    node((i, 2), "ELF Objects", width: w),
+    node((i, 3), "Sections", width: w),
+    node((i, 4), "Segments", width: w),
+    node((i, 5), "Shared memory", width: w),
+
+
+    edge((0,3), "rr", "=>"),
+    edge((0,4), "rr", "<="),
+
+    i += 2,
+    node((i, 0.5), enclose: ((i - 0.75, 0), (i+1, 6)), name: "modules"),
+
+    node((i, 0.25), [`SystemV Chain`], stroke: none),
+    node((i+1, 0.25), [`Filters`], stroke: none),
+    
+    node((i, 1), link(<sysv-collector>, [Collector]), name: "collector", width: w),
+    edge("-"),
+    node((i+  1, 1), [Section `SH_DYNAMIC`], width: w),
+    node((i, 2), link(<sysv-loader>, [Loader]), name: "loader", width: w),
+    edge("-"),
+    node((i+  1, 2), [Segment `PT_LOAD`], width: w),
+    node((i, 3), link(<sysv-tls>, [Thread-local storage]), name: "tls", width: w),
+    edge("-"),
+    node((i+  1, 3), "Manifold", width: w),
+    node((i, 4), link(<sysv-reloc>, [Relocation]), name: "reloc", width: w),
+    edge("-"),
+    node((i+  1, 4), [Section `SH_RELA`], width: w),
+    node((i, 5), link(<sysv-protect>, [Protect]), name: "protect", width: w),
+    edge("-"),
+    node((i+  1, 5), [Segment `PT_LOAD`], width: w),
+    node((i, 6), link(<sysv-start>, [Start]), name: "start", width: w),
+    edge("-"),
+    node((i+  1, 6), "Manifold", width: w),
+    
+    edge(<collector>, <loader>, "->"),
+    edge(<loader>, <tls>, "->"),
+    edge(<tls>, <reloc>, "->"),
+    edge(<reloc>, <protect>, "->"),
+    edge(<protect>, <start>, "->"),
+  ),
+
+
+  caption: [Default System V module chain],
+)<fig-systemv>
 
 == Collector<sysv-collector>
 
@@ -332,7 +433,7 @@ The physical size indicates only the size of the segment in the file and not the
 
 Note that as of now, the loaded segments are all stored with read & write permission bits, necessary for the next modules. They will be updated with the actual permissions bits from the program header table later on, when all the modifications on the code will have been applied.
 
-== Thread local storage<tls>
+== Thread local storage<sysv-tls>
 
 The thread-local storage is a part of memory referenced by the `fs` register and containing data related to the current thread, such as the thread control block (TCB) and some other data defined in the ELF. The specification of thread-local storage for ELF files@tls-spec gives the following schema for the memory layout of TLS:
 
@@ -359,7 +460,12 @@ Here are some examples from x86 ABI@system-v:
 
   #table(
     columns: 3,
-    table.header([Name], [Value], [Calculation]),
+    table.header(
+      [Name],
+      [Value],
+      [Calculation],
+    ),
+
     [`R_X86_64_64`], [1], [S + A],
     [`R_X86_64_JUMP_SLOT`], [7], [S],
     [`R_X86_64_RELATIVE`], [8], [B + A],
@@ -380,11 +486,11 @@ While the `JUMP_SLOT` relocation may seem simple, its actual behavior is actuall
 
 In our implementation, we did not implement such behavior but rather resolves all the symbols at once during the relocation module and uses those address to apply the relocation, completely bypassing the PLT and GOT. It is way easier than the correct approach, but comes at a large time cost, as resolving all the symbol can be a lengthy endeavor.
 
-== Protect
+== Protect<sysv-protect>
 
 Once all the modifications on the segments' content are done, the linker must update the permission bits of the different segments to match those specified by each entry in the program header table. This is achieved using a simple `mprotect()` call, redefining the permissions of the segments one by one. Note that those permissions can only be set once the relocations are completed as they usually require modifying code, which is protected with read & execute bits.
 
-== Start
+== Start<sysv-start>
 
 Final module of the chain. Before jumping into the main program, the stack still needs to be set. The module constructs the stack of the executable by pushing `args`, `env` and `auxv` into memory and correctly setting `rsp`. `args`, `env` and `auxv` are set by Linux and could be retrieved from the stack at the very beginning of fold execution. Finally, it jumps to the entry point of the ELF.
 
@@ -398,9 +504,13 @@ From a security perspective, it could be interesting to reduce the number of sys
 
 To implement this, we can simply create a new Fold module, which will perform a global operation on all the manifold. It will construct the filter, with predefined syscalls, and install it inside the process with `seccomp`.
 
-#code("examples/seccomp-linker/src/seccomp.rs", ident: "Module", caption: [Module implementation of `Seccomp`])<seccomp-src>
+#code(
+  "examples/seccomp-linker/src/seccomp.rs",
+  ident: "Module",
+  caption: [Module implementation of `Seccomp`],
+)<seccomp-src>
 
-Once the module is created, we can define the entry point of our new loader, and augment the basic SystemV chain with our module. It means inserting the module before the start module.
+Once the module is created, we can define the entry point of our new loader, and augment the basic System V chain with our module. It means inserting the module before the start module.
 
 #code(
   "examples/seccomp-linker/src/main.rs",
@@ -409,10 +519,11 @@ Once the module is created, we can define the entry point of our new loader, and
   caption: "Main entry for seccomp-linker",
 )<seccomp-main>
 
+Note that it is very easy to implement this directly in the linker, since it runs in the same process as the executable. Thus, calling `seccomp` from the linker's code will limit the resulting executable, without requiring to modify another process.
 
 == Inter-module communication
 
-We can push the previous syscall filter idea further. For example, we could scan the object to detect the syscalls used and then restrict the process to only this set.
+We can push the previous syscall filter idea further. For example, we could scan the object to detect the syscalls used and then restrict the process to only this set. The linker is a great place to do such analysis as it can observe the whole executable code and used symbols.
 
 In order to do the scan, and to illustrate communication between modules, we choose to create another module, at the beginning of the chain, that first collect symbols from the ELF and produce a set of syscalls to communicate to the `seccomp` filter module. The last one will retrieve it and create its filter from this.
 
@@ -477,6 +588,8 @@ The linker adds an extra module after the relocation one to rewrite the relocati
 
 This implementation of hook is rather simple, allowing a single function to be targeted by a hook and the hook must be hard coded in the linker itself. A more complete implementation could instead look for the hooks in a new dedicated ELF section, and each hook could have several "entrypoints", with multiple `mov rax {}` instructions each followed by a jump to the `push rax` one which would allow to have several functions rewritten to different entrypoints.
 
+It is also interesting to note that implementing such hooks aligns well with the linker's actual purpose as, outside of the trampoline function, the new module replace the hijacked functions' relocations by relocations to the trampoline and rewriting the trampoline's first `mov` is equivalent to a relocation to the hijacked function.
+
 = State of the project
 
 Currently, the project features the System V modules for handling basic x86 executables and a full API to manipulate that chain. However, the existing modules are limited as they do not handle all relocations and support for thread-local storage is sparse.
@@ -487,7 +600,7 @@ There are also several examples that use the framework to achieve various purpos
 
 = Future work<future-work>
 
-Although the design and main parts of the implementation are complete, there are still some challenges to address before the System V modules can be considered fully working. The two major ones are to complete the handling of thread-local storage (@tls) and lazy processing of jump slot relocations (@sysv-reloc).
+Although the design and main parts of the implementation are complete, there are still some challenges to address before the System V modules can be considered fully working. The two major ones are to complete the handling of thread-local storage (@sysv-tls) and lazy processing of jump slot relocations (@sysv-reloc).
 
 Along with these major milestones, some other improvements could be added, such as:
 - Improving stack creation to reuse the initial stack of the process instead of creating a new one before jumping to the entrypoint:
