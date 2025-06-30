@@ -61,7 +61,7 @@
 
 = Motivation
 
-When looking at the System landscape, it is clear that research is far ahead of actual implementations, as incorporating new technologies require to either merge them into the Linux Kernel or write a whole new OS. Both are very time consuming and while the latter is more likely to succeed, it would most probably never get actually done due to the time it would take and the constraints for adding new features to Linux.
+When looking at the System landscape, it is clear that research is far ahead of actual implementations, as incorporating new technologies require to either merge them into the Linux Kernel or write a whole new OS. Both are very time-consuming and while the latter is more likely to succeed, it would most probably never get actually done due to the time it would take and the constraints for adding new features to Linux.
 
 #quote(attribution: [Rob Pike@pike-rant])[Systems Software Research is Irrelevant]
 
@@ -75,7 +75,7 @@ Based on these observations, we present Fold, a framework to easily create new d
 
 == ELF
 
-Before diving into Fold's inner working, let's first take a quick look at what an executable file looks like. ELF (executable and linkable format)@elf is the format used for all executable files in a Linux environments. It is divided into four main parts: ELF header, program header table (PHT), content and section header table (SHT). The content itself is composed of segments and section, each having some extra metadata in, respectively, the program header table and the section header table. As depicted in #ref(<fig-elf-sctructure>), it is important to note that segments and sections are two different "views" of the same content; a segment can overlap with a section and vice versa, but a segment cannot overlap with other segments. Segment carry information on the mapping of the ELF content in the virtual space and its protection, where section carry information on what the content is and how to interpret it (code, string table, `plt`...).
+Before diving into Fold's inner working, let's first take a quick look at what an executable file looks like. ELF -- _Executable and Linkable Format_ -- @elf is the format used for all executable files in a Linux environments. It is divided into four main parts: ELF header, program header table (PHT), content and section header table (SHT). The content itself is composed of segments and section, each having some extra metadata in, respectively, the program header table and the section header table. As depicted in #ref(<fig-elf-sctructure>), it is important to note that segments and sections are two different "views" of the same content; a segment can overlap with a section and vice versa, but a segment cannot overlap with other segments. Segment carry information on the mapping of the ELF content in the virtual space and its protection, where section carry information on what the content is and how to interpret it (code, string table, `plt`...).
 
 #figure(
   diagram(
@@ -395,7 +395,7 @@ Precise filters can be assigned to most of the modules, simplifying the work don
     node((i + 1, 3), "Manifold", width: w),
     node((i, 4), link(<sysv-reloc>, [Relocation]), name: "reloc", width: w),
     edge("-"),
-    node((i + 1, 4), [Section `SH_RELA`], width: w),
+    node((i + 1, 4), [Manifold], width: w),
     node((i, 5), link(<sysv-protect>, [Protect]), name: "protect", width: w),
     edge("-"),
     node((i + 1, 5), [Segment `PT_LOAD`], width: w),
@@ -436,7 +436,7 @@ One issue that may arise is that `mmap()` requires addresses and sizes aligned w
 
 The physical size indicates the size of the segment in the file and not the size it will have in memory; the virtual size may be larger if the segments ends in zeros. In that case, after copying the segment, the module will initialize the differences with zeros.
 
-Note that for now, the loaded segments are all stored with read & write permission bits, necessary for the next modules. They will be updated with the actual permissions bits from the program header table later on, when all the modifications on the code will have been applied (@sysv-protect).
+Note that for now, the loaded segments are all mapped with read & write permission bits, necessary for the next modules. They will be updated with the actual permissions bits from the program header table later on, when all the modifications on the code will have been applied (@sysv-protect).
 
 == Thread local storage<sysv-tls>
 
@@ -450,7 +450,7 @@ The block including the TCB can simply be mmapped after computing the list of of
 
 A relocation is a modification of the content of loaded segments planned during compilation and resolved at link time, as it requires additional information like data from dependencies or even results of code execution. There is a large variety of relocation types, each with its own computation. They are mainly used to update `call`s to external library functions such that they hold the correct address of the function to jump to.
 
-The relocation module processes sections with the tag `SHT_RELA`, each section containing an array of relocations. These entries hold an offset, a type and an extra value (also called addend). Depending on the type of the relocation, the operation to execute is different.
+The relocation module processes sections with the tag `SHT_RELA`, each section containing an array of relocations. The order in which these entries must be handled is quite specific; it must be done in the order in which they appear in the object files but the objects must be processed in reverse order, meaning that objects loaded last (i.e. with no dependencies) are relocated first. The relocation entries hold an offset, a type and an extra value (also called addend). Depending on the type of the relocation, the operation to execute is different.
 
 Here are some examples for x86 systems@system-v:
 
@@ -515,7 +515,7 @@ To implement this, we can simply create a new Fold module, which performs a glob
   caption: [Module implementation of `Seccomp`],
 )<seccomp-src>
 
-Once the module is created, we can define the entry point of our new loader, and augment the basic System V chain with our module. It means inserting the module before the start module.
+Once the module is created, we can define the entry point of our new loader, and augment the basic System V chain with our module. It means inserting the new module before the start module.
 
 #code(
   "examples/seccomp-linker/src/main.rs",
