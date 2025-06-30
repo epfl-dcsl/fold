@@ -7,6 +7,7 @@ use alloc::vec::Vec;
 use core::str::FromStr;
 
 use goblin::elf::program_header::PT_LOAD;
+use goblin::elf::section_header::SHT_DYNAMIC;
 
 use crate::arena::Handle;
 use crate::cli::Config;
@@ -75,7 +76,7 @@ impl Fold {
             .register(
                 "collect",
                 SysvRemappingCollector::new(),
-                Filter::any_object(),
+                Filter::section_type(SHT_DYNAMIC),
             )
             .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
             .register("tls", SysvTls, Filter::manifold())
