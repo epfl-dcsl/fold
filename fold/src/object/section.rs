@@ -89,10 +89,17 @@ impl Section {
         // - Must be respected in the file
         let _addr_align = header.sh_addralign;
 
+        // If the section type is SHT_NOBITS (.bss) then real file size of section is 0
+        let section_size = if header.sh_type != SHT_NOBITS {
+            header.sh_size
+        } else {
+            0
+        };
+
         Self {
             mapping: Mapping {
                 bytes: &mapping.bytes()
-                    [header.sh_offset as usize..(header.sh_offset + header.sh_size) as usize],
+                    [header.sh_offset as usize..(header.sh_offset + section_size) as usize],
                 fd: None,
             },
             obj: obj_idx,

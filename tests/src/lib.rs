@@ -38,6 +38,14 @@ mod tests {
     }
 
     #[test]
+    fn hello_bss() {
+        let output = Command::new("../samples/hello-bss")
+            .output()
+            .expect("Failed to execute process");
+        assert!(String::from_utf8_lossy(&output.stdout).contains("hi there"));
+    }
+
+    #[test]
     fn hello_dl() {
         let output = Command::new("../samples/hello-dl")
             .output()

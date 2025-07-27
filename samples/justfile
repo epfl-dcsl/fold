@@ -34,6 +34,11 @@ programs:
 	patchelf --set-interpreter {{linker}} hello-args
 	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-args
 
+	# hello-bss.c
+	gcc -o hello-bss hello-bss.c -pie -fPIE
+	patchelf --set-interpreter {{linker}} hello-bss
+	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-bss
+
 	# hello-env.c 
 	gcc -o hello-env hello-env.c -pie -fPIE
 	patchelf --set-interpreter {{linker}} hello-env
