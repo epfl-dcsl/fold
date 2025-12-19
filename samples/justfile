@@ -69,6 +69,12 @@ programs:
 	patchelf --set-interpreter {{seccomp-sym-linker}} seccomp-sym-hello-c
 	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so seccomp-sym-hello-c
 
+	# hello-threaded.c
+	gcc count.c -shared -o libcount.so -fPIC
+	gcc count-pic.c -shared -o libcount-pic.so -fPIC
+	gcc hello-threaded.c -L . -l count -o hello-threaded -fPIC
+	gcc hello-threaded-pic.c -L . -l count-pic -o hello-threaded-pic -fPIC
+
 riscv-programs:
 	# hello-riscv (should have riscv build toolchain)
 	riscv64-unknown-linux-gnu-gcc -o hello-riscv hello-riscv.s -nostdlib -static

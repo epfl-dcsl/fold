@@ -10,6 +10,8 @@ hello-args
 hello-bss
 hello-env
 hello-math
+hello-threaded
+hello-threaded-pic
 seccomp-allowed
 seccomp-forbidden
 hello-riscv
