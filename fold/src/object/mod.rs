@@ -25,6 +25,7 @@ pub use segment::*;
 // ———————————————————————————————— Objects ————————————————————————————————— //
 
 /// An elf object.
+#[derive(Debug)]
 pub struct Object {
     /// Path in the filesystem of object's file.
     pub path: CString,
