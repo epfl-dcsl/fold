@@ -10,7 +10,7 @@ use core::marker::PhantomData;
 /// The type `T` is the type of the corresponding value in the [`ShareMap`]. As a convention, [`ShareMapKey`]s should be
 /// exposed as global constants to allow easy communication between modules.
 pub struct ShareMapKey<T> {
-    key: &'static str,
+    pub key: &'static str,
     _marker: PhantomData<T>,
 }
 
