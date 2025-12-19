@@ -3,6 +3,7 @@ use alloc::ffi::CString;
 use alloc::vec::Vec;
 use core::cell::LazyCell;
 use core::str::FromStr;
+use log::info;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE, *};
 use goblin::elf::section_header::SHT_RELA;
@@ -239,7 +240,7 @@ fn process_reloc(
                 let code: extern "C" fn() -> i64 = unsafe { core::mem::transmute(b + a) };
                 apply_reloc!(addr, code(), i64);
             }
-            _ => panic!("unknown rela type 0x{:x}", r#type),
+            _ => info!("unknown rela type {:#x}", r#type),
         };
     }
 
