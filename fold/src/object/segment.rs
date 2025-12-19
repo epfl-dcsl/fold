@@ -5,6 +5,7 @@ use crate::elf::Object;
 use crate::file::Mapping;
 use crate::{Manifold, ShareMap};
 
+#[derive(Debug)]
 pub struct Segment {
     /// The mapping representing this segment in the object.
     pub mapping: Mapping,

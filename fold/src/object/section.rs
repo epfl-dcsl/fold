@@ -41,6 +41,7 @@ macro_rules! as_section {
 /// Representation of an ELF Section in the Manifold.
 ///
 /// All the attributes of the section can be accessed directly. For more complex manipulation, the `as_*` methods can be used to create tag-checked wrappers around the section.
+#[derive(Debug)]
 pub struct Section {
     /// The mapping representing this section in the object.
     pub mapping: Mapping,

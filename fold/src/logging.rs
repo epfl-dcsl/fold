@@ -35,7 +35,7 @@ macro_rules! println {
 macro_rules! dbg {
     ($arg:expr) => {{
         use ::core::fmt::Write;
-        ::core::writeln!($crate::logging::Stdout {}, "{:#?}", $arg).unwrap();
+        ::core::writeln!($crate::logging::Stdout {},concat!("[", file!(), ":", line!(), "] ", stringify!($arg), " = {:#?}"), $arg).unwrap();
         $arg
     }};
 }
