@@ -1,4 +1,5 @@
 use alloc::boxed::Box;
+use alloc::collections::btree_map::Entry;
 use alloc::collections::BTreeMap;
 use core::any::Any;
 use core::marker::PhantomData;
@@ -44,5 +45,31 @@ impl ShareMap {
     /// Retreives a value from the map. The type `T` of the `key` must match the type of the value in the map.
     pub fn get<T: 'static>(&self, key: ShareMapKey<T>) -> Option<&T> {
         self.map.get(key.key).and_then(|v| v.downcast_ref())
+    }
+
+    /// Retreives a value from the map. The type `T` of the `key` must match the type of the value in the map.
+    pub fn get_mut<T: 'static>(&mut self, key: ShareMapKey<T>) -> Option<&mut T> {
+        self.map.get_mut(key.key).and_then(|v| v.downcast_mut())
+    }
+
+    pub fn insert_or_update<T: 'static, A: FnOnce() -> T, U: FnOnce(&mut T)>(
+        &mut self,
+        key: ShareMapKey<T>,
+        absent: A,
+        update: U,
+    ) -> bool {
+        match self.map.entry(key.key) {
+            Entry::Vacant(vacant_entry) => {
+                vacant_entry.insert(Box::new(absent()));
+            }
+            Entry::Occupied(mut occupied_entry) => {
+                let Some(entry) = occupied_entry.get_mut().downcast_mut() else {
+                    return false;
+                };
+                update(entry);
+            }
+        }
+
+        true
     }
 }
