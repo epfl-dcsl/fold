@@ -1,6 +1,6 @@
 use alloc::ffi::CString;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Errors that may originate from Fold's internal working.
 pub enum FoldError {
     InvalidSectionCast { expected: u32, actual: u32 },

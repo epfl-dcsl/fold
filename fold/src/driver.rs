@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use core::str::FromStr;
 
 use goblin::elf::program_header::PT_LOAD;
-use goblin::elf::section_header::SHT_DYNAMIC;
+use goblin::elf::section_header::{SHT_DYNAMIC, SHT_RELA};
 
 use crate::arena::Handle;
 use crate::cli::Config;
@@ -17,13 +17,16 @@ use crate::manifold::Manifold;
 use crate::module::Module;
 use crate::object::Object;
 use crate::sysv::collector::{
-    SysvRemappingCollector, SYSV_COLLECTOR_REMAP_KEY, SYSV_COLLECTOR_SEARCH_PATHS_KEY,
+    SysvCollector, SysvRemappingCollector, SYSV_COLLECTOR_REMAP_KEY,
+    SYSV_COLLECTOR_SEARCH_PATHS_KEY,
 };
 use crate::sysv::loader::SysvLoader;
 use crate::sysv::protect::SysvProtect;
 use crate::sysv::relocation::SysvReloc;
 use crate::sysv::start::SysvStart;
-use crate::sysv::tls::SysvTls;
+use crate::sysv::tls::allocation::TlsAllocator;
+use crate::sysv::tls::collection::TlsCollector;
+use crate::sysv::tls::relocation::TlsRelocator;
 use crate::{cli, file, ShareMap};
 
 type ModuleRef = Box<dyn Module>;
@@ -73,13 +76,15 @@ impl Fold {
     /// See [`Fold::new`] for details on the arguments.
     pub fn default_chain(env: Env, linker_name: &str) -> Fold {
         let mut fold = Self::new(env, linker_name)
-            .register(
-                "collect",
-                SysvRemappingCollector::new(),
-                Filter::section_type(SHT_DYNAMIC),
-            )
+            .register("collect", SysvCollector, Filter::section_type(SHT_DYNAMIC))
             .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
-            .register("tls", SysvTls, Filter::manifold())
+            .register("tls-collector", TlsCollector, Filter::any_object())
+            .register("tls-allocator", TlsAllocator, Filter::manifold())
+            .register(
+                "tls-relocator",
+                TlsRelocator,
+                Filter::section_type(SHT_RELA),
+            )
             .register(
                 "relocation",
                 SysvReloc::new(),
