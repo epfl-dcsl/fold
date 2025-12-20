@@ -12,15 +12,17 @@ thread_local volatile int id;
 thread_local volatile const int value = 50;
 
 int procedure(void *name) {
-  printf("Hello from %s\n", (const char *)name);
+  printf("[%d] Hello from %s\n", gettid(), (const char *)name);
 
-  printf("TLS stores id at %p and value at %p\n", &id, &value);
+  printf("[%d] TLS stores id at %p and value at %p\n", gettid(), &id, &value);
 
   id = gettid();
-  printf("These values contain %d and %d\n", id, value);
+  printf("[%d] These values contain %d and %d\n", gettid(), id, value);
+
+  printf("[%d] Count is stored at %p\n", gettid(), &count);
 
   count++;
-  printf("Count is %d\n", count);
+  printf("[%d] Count is %d\n", gettid(), count);
 
   return 0;
 }

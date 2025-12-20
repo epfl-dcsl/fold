@@ -13,7 +13,10 @@ use crate::{
     elf::{ElfItemIterator, Section, SectionT},
     sysv::{
         loader::SYSV_LOADER_BASE_ADDR,
-        tls::{allocation::TLS_PTR, load_from_manifold, TlsError},
+        tls::{
+            allocation::{TLS_PTR, TLS_TCB_PTR},
+            load_from_manifold, TlsError,
+        },
     },
     Manifold, Module,
 };
@@ -42,6 +45,10 @@ impl Module for TlsRelocator {
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn Debug>> {
         let section = &manifold[section];
+        let tp = *manifold
+            .shared
+            .get(TLS_TCB_PTR)
+            .ok_or(TlsError::MissingSharedMapEntry(TLS_TCB_PTR.key))?;
         let mut tls_ptr = *manifold
             .shared
             .get(TLS_PTR)
@@ -86,8 +93,10 @@ impl Module for TlsRelocator {
                     let (section, sym) = *orig;
                     tls_ptr = load_from_manifold(manifold, section.obj, tls_ptr)?;
 
+                    let offset = (tp - tls_ptr + sym.st_value as usize) as u32;
+
                     unsafe {
-                        write_unaligned(addr as *mut u32, tls_ptr as u32 + sym.st_value as u32);
+                        write_unaligned(addr as *mut u32, offset.wrapping_neg());
                     }
                 }
                 R_X86_64_TPOFF64 => {
@@ -95,9 +104,10 @@ impl Module for TlsRelocator {
                     tls_ptr = load_from_manifold(manifold, section.obj, tls_ptr)?;
 
                     log::trace!("Found symbol at offset {}", sym.st_value);
+                    let offset = (tp - tls_ptr + sym.st_value as usize) as u64;
 
                     unsafe {
-                        write_unaligned(addr as *mut u64, tls_ptr as u64 + sym.st_value);
+                        write_unaligned(addr as *mut u64, offset.wrapping_neg());
                     }
                 }
                 R_X86_64_DTPMOD64 | R_X86_64_DTPOFF32 | R_X86_64_DTPOFF64 | R_X86_64_GOTTPOFF
