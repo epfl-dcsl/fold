@@ -5,7 +5,7 @@ use crate::{
     sysv::tls::{
         build,
         collection::{TLS_MODULES_KEY, TLS_MODULE_ID_KEY},
-        load_from_manifold, set_fs, ThreadControlBlock, TlsError,
+        load_from_manifold, set_fs, ThreadControlBlock,
     },
     Manifold, Module, ShareMapKey,
 };
@@ -21,15 +21,16 @@ impl Module for TlsAllocator {
     }
 
     fn process_manifold(&mut self, manifold: &mut Manifold) -> Result<(), Box<dyn Debug>> {
-        let modules = manifold
-            .shared
-            .get(TLS_MODULES_KEY)
-            .ok_or(TlsError::MissingSharedMapEntry(TLS_MODULES_KEY.key))?;
+        let modules = manifold.shared.get(TLS_MODULES_KEY);
 
         let tcb = build(
-            modules.len(),
+            modules.map(|m| m.len()).unwrap_or_default(),
             // TODO: may need to take alignment into account.
-            modules.iter().map(|m| manifold[m.segment].mem_size).sum(),
+            modules
+                .iter()
+                .flat_map(|v| v.iter())
+                .map(|m| manifold[m.segment].mem_size)
+                .sum(),
         )?;
 
         let ptr = tcb as *mut ThreadControlBlock as usize;
