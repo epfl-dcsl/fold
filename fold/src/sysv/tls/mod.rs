@@ -2,7 +2,7 @@ use alloc::{boxed::Box, fmt::Debug};
 use core::{
     arch::asm,
     ffi::c_void,
-    ptr::{null_mut, read_unaligned, slice_from_raw_parts_mut},
+    ptr::{null_mut, slice_from_raw_parts_mut},
 };
 use log::trace;
 
@@ -15,6 +15,7 @@ use crate::{
     arena::Handle,
     dbg,
     elf::Object,
+    musl::{RobustList, ThreadControlBlock},
     sysv::tls::{
         allocation::TLS_TCB_PTR,
         collection::{TLS_MODULES_KEY, TLS_MODULE_ID_KEY},
@@ -50,26 +51,6 @@ struct TLSModule<'a> {
 /// Size of the TCB in musl's implementation.
 const TCB_SIZE: usize = 704;
 const PAGE_SIZE: usize = 1 << 12;
-
-#[repr(C)]
-struct ThreadControlBlock {
-    tcb: *mut ThreadControlBlock,
-    dtv: *mut usize,
-    prev: usize,
-    next: usize,
-    sysinfo: u64,
-    stack_guard: u64,
-    tid: u32,
-}
-
-impl ThreadControlBlock {
-    fn get_dtv(&mut self) -> &mut [usize] {
-        unsafe {
-            let size = read_unaligned(self.dtv);
-            &mut *slice_from_raw_parts_mut(self.dtv, size + 1)
-        }
-    }
-}
 
 fn build_dtv(module_count: usize) -> *mut usize {
     let dtv = unsafe {
@@ -147,11 +128,36 @@ fn build(
     *tcb = ThreadControlBlock {
         tcb: tcb_addr,
         dtv,
-        prev: 0,
-        next: 0,
+        prev: &raw mut *tcb,
+        next: &raw mut *tcb,
         sysinfo: 0,
-        stack_guard: 0xDEADBEEF_u64,
+        stack_guard: 0xDEADBEEF_u64, // TODO: randomly generated this
         tid,
+        errno: 0,
+        detach_state: 0x2, // DT_JOINABLE
+        cancel: 0,
+        cancel_disable: 0,
+        cancel_async: 0,
+        flags: 0,
+        map_base: null_mut(),
+        map_size: 0,
+        stack: null_mut(),
+        stack_size: 0,
+        guard_size: 0,
+        result: null_mut(),
+        cancel_buf: null_mut(),
+        tsd: null_mut(),
+        robust_list: RobustList {
+            head: &raw mut tcb.robust_list.head as *mut c_void,
+            off: 0,
+            pending: null_mut(),
+        },
+        h_errno: 0,
+        timer_id: 0,
+        locale: null_mut(),
+        kill_lock: 0,
+        dlerror_buf: null_mut(),
+        stdio_locks: null_mut(),
     };
 
     Ok(tcb)

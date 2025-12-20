@@ -29,7 +29,6 @@ pub use segment::*;
 pub struct Object {
     /// Path in the filesystem of object's file.
     pub path: CString,
-    /// Raw content of the object.
     pub mapping: Arc<Mapping>,
 
     /// Handles in the manifold of the section of this object.
