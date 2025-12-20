@@ -75,17 +75,8 @@ programs:
 	gcc -g hello-threaded.c -L . -l count -o hello-threaded -fPIC
 	gcc -g hello-threaded-pic.c -L . -l count-pic -o hello-threaded-pic -fPIC
 
-	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so libcount.so
-	patchelf --remove-needed ld-linux-x86-64.so.2 libcount.so
 	patchelf --set-interpreter {{linker}} hello-threaded
-	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-threaded
-	patchelf --remove-needed ld-linux-x86-64.so.2 hello-threaded
-
-	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so libcount-pic.so
-	patchelf --remove-needed ld-linux-x86-64.so.2 libcount-pic.so
 	patchelf --set-interpreter {{linker}} hello-threaded-pic
-	patchelf --replace-needed libc.so.6 ../musl/lib/libc.so hello-threaded-pic
-	patchelf --remove-needed ld-linux-x86-64.so.2 hello-threaded-pic
 
 riscv-programs:
 	# hello-riscv (should have riscv build toolchain)

@@ -18,7 +18,7 @@ use crate::module::Module;
 use crate::musl::MuslLocator;
 use crate::object::Object;
 use crate::sysv::collector::{
-    SysvCollector, SYSV_COLLECTOR_REMAP_KEY, SYSV_COLLECTOR_SEARCH_PATHS_KEY,
+    SysvRemappingCollector, SYSV_COLLECTOR_REMAP_KEY, SYSV_COLLECTOR_SEARCH_PATHS_KEY,
 };
 use crate::sysv::loader::SysvLoader;
 use crate::sysv::protect::SysvProtect;
@@ -76,7 +76,11 @@ impl Fold {
     /// See [`Fold::new`] for details on the arguments.
     pub fn default_chain(env: Env, linker_name: &str) -> Fold {
         let mut fold = Self::new(env, linker_name)
-            .register("collect", SysvCollector, Filter::section_type(SHT_DYNAMIC))
+            .register(
+                "collect",
+                SysvRemappingCollector,
+                Filter::section_type(SHT_DYNAMIC),
+            )
             .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
             .register("musl-locator", MuslLocator, Filter::manifold())
             .register("tls-collector", TlsCollector, Filter::any_object())

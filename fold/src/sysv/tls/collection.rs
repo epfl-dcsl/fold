@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, fmt::Debug, vec::Vec};
+use alloc::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use goblin::elf::program_header::PT_TLS;
 
 use crate::{
@@ -30,20 +30,22 @@ impl Module for TlsCollector {
         obj: Handle<Object>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn Debug>> {
-        let segments: Vec<TlsModule> = manifold[obj]
+        let Some(segments) = manifold[obj]
             .segments
             .iter()
-            .filter(|s| manifold.segments[**s].tag == PT_TLS)
+            .find(|s| manifold.segments[**s].tag == PT_TLS)
             .map(|s| TlsModule {
                 object: obj,
                 segment: *s,
             })
-            .collect();
+        else {
+            return Ok(());
+        };
 
         manifold.shared.insert_or_update(
             TLS_MODULES_KEY,
-            || segments.clone(),
-            |v| v.append(&mut segments.clone()),
+            || vec![segments.clone()],
+            |v| v.push(segments.clone()),
         );
 
         let end = dbg!(manifold.shared.get(TLS_MODULES_KEY))

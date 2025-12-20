@@ -225,7 +225,7 @@ fn load_static_module(
         // The memory region was previously reserved while allocating the TCB. It still needs to be
         // page-aligned before calling mmap.
         let requested_addr = (mod_addr_usize & !((1 << 12) - 1)) as *mut c_void;
-        let requested_size = (prev_offset >> 12) - (mod_addr_usize >> 12) << 12;
+        let requested_size = ((prev_offset >> 12) - (mod_addr_usize >> 12)) << 12;
 
         let addr = unsafe {
             mmap_anonymous(
@@ -242,7 +242,7 @@ fn load_static_module(
     let mod_slice = unsafe { &mut *slice_from_raw_parts_mut(mod_addr_usize as *mut u8, size) };
 
     let (tdata, tbss) = mod_slice.split_at_mut(data.len());
-    tdata.copy_from_slice(&data);
+    tdata.copy_from_slice(data);
     tbss.fill(0);
 
     Ok(mod_addr_usize)
