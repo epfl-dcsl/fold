@@ -15,10 +15,10 @@ use crate::env::Env;
 use crate::filters::Filter;
 use crate::manifold::Manifold;
 use crate::module::Module;
+use crate::musl::MuslLocator;
 use crate::object::Object;
 use crate::sysv::collector::{
-    SysvCollector, SysvRemappingCollector, SYSV_COLLECTOR_REMAP_KEY,
-    SYSV_COLLECTOR_SEARCH_PATHS_KEY,
+    SysvCollector, SYSV_COLLECTOR_REMAP_KEY, SYSV_COLLECTOR_SEARCH_PATHS_KEY,
 };
 use crate::sysv::loader::SysvLoader;
 use crate::sysv::protect::SysvProtect;
@@ -78,6 +78,7 @@ impl Fold {
         let mut fold = Self::new(env, linker_name)
             .register("collect", SysvCollector, Filter::section_type(SHT_DYNAMIC))
             .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
+            .register("musl-locator", MuslLocator, Filter::manifold())
             .register("tls-collector", TlsCollector, Filter::any_object())
             .register("tls-allocator", TlsAllocator, Filter::manifold())
             .register(

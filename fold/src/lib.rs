@@ -23,6 +23,7 @@ pub mod arena;
 pub mod elf;
 pub mod file;
 pub mod logging;
+pub mod musl;
 pub mod sysv;
 
 pub use allocator::*;
