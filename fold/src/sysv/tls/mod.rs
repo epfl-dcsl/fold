@@ -13,9 +13,8 @@ use rustix::{
 
 use crate::{
     arena::Handle,
-    dbg,
     elf::Object,
-    musl::{RobustList, ThreadControlBlock},
+    musl::{Libc, RobustList, ThreadControlBlock},
     sysv::tls::{
         allocation::TLS_TCB_PTR,
         collection::{TLS_MODULES_KEY, TLS_MODULE_ID_KEY},
@@ -74,6 +73,7 @@ fn build_dtv(module_count: usize) -> *mut usize {
 fn build(
     module_count: usize,
     total_module_size: usize,
+    libc: &Libc,
 ) -> Result<&'static mut ThreadControlBlock, TlsError> {
     log::info!(
         "Building TLS with tcb_size={} for {module_count} modules. Reserving {total_module_size:#x} bytes for static modules.",
@@ -154,7 +154,7 @@ fn build(
         },
         h_errno: 0,
         timer_id: 0,
-        locale: null_mut(),
+        locale: &raw const libc.global_locale,
         kill_lock: 0,
         dlerror_buf: null_mut(),
         stdio_locks: null_mut(),
@@ -188,8 +188,6 @@ fn load_from_manifold(
 
     let segment = &manifold[module.segment];
 
-    dbg!(segment);
-
     load_static_module(
         id,
         segment.mapping.bytes(),
@@ -207,7 +205,6 @@ fn load_static_module(
     prev_offset: usize,
 ) -> Result<usize, TlsError> {
     log::info!("Statically loading TLS module with id {id}.");
-    log::debug!("Data is {:#x?}", data);
 
     let dtv = tcb.get_dtv();
 

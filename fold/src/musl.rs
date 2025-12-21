@@ -1,12 +1,17 @@
 use core::{
     ffi::{c_void, CStr},
     fmt::Debug,
+    marker::PhantomData,
+    ops::Range,
     ptr::{read_unaligned, slice_from_raw_parts_mut},
 };
 
 use alloc::boxed::Box;
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-use crate::{arena::Handle, elf::Object, Manifold, Module, ShareMapKey};
+use crate::{
+    arena::Handle, elf::Object, sysv::loader::SYSV_LOADER_MAPPING, Manifold, Module, ShareMapKey,
+};
 
 pub type Sysinfo = usize;
 
@@ -45,7 +50,7 @@ pub struct ThreadControlBlock {
     pub robust_list: RobustList,
     pub h_errno: u32,
     pub timer_id: u32,
-    pub locale: *mut c_void,
+    pub locale: *const Locale,
     pub kill_lock: u32,
     pub dlerror_buf: *mut u8,
     pub stdio_locks: *mut u8,
@@ -60,51 +65,97 @@ impl ThreadControlBlock {
     }
 }
 
+#[derive(Debug, Clone, FromBytes, IntoBytes, Immutable, KnownLayout)]
 pub struct Libc {
     pub can_do_threads: u8,
     pub threaded: u8,
     pub secure: u8,
     pub need_locks: i8,
     pub trheads_minus_1: u32,
-    pub auxv: *mut usize,
-    pub tls_head: *mut c_void,
+    pub auxv: usize,
+    pub tls_head: usize,
     pub tls_size: usize,
     pub tls_align: usize,
     pub tls_cnt: usize,
     pub page_size: usize,
-    pub global_local: Locale,
+    pub global_locale: Locale,
 }
 
+#[derive(Debug, Clone, FromBytes, IntoBytes, Immutable, KnownLayout)]
 pub struct Locale {
-    pub cat: [*const LocaleMap; 6],
+    pub cat: [usize; 6],
 }
 
-pub struct LocaleMap {
-    pub map: *const c_void,
-    pub map_size: usize,
-    pub name: [u8; 24],
-    pub next: *const LocaleMap,
+#[derive(Debug, Clone, Copy)]
+enum MuslLocatorError {
+    MutObjectNotFound,
+    Conversion,
 }
 
 pub struct MuslLocator;
 
-pub const MUSL_LIBC_KEY: ShareMapKey<*mut Libc> = ShareMapKey::new("musl-libc");
-pub const MUSL_SYSINFO_KEY: ShareMapKey<*mut Sysinfo> = ShareMapKey::new("musl-sysinfo");
+pub const MUSL_LIBC_KEY: ShareMapKey<MuslObjectIdx<Libc>> = ShareMapKey::new("musl-libc");
+pub const MUSL_SYSINFO_KEY: ShareMapKey<MuslObjectIdx<Sysinfo>> = ShareMapKey::new("musl-sysinfo");
+
+#[derive(Debug, Clone)]
+pub struct MuslObjectIdx<T> {
+    range: Range<usize>,
+    musl_obj: Handle<Object>,
+    data: PhantomData<T>,
+}
+
+impl<T> MuslObjectIdx<T>
+where
+    T: FromBytes + KnownLayout + Immutable + IntoBytes + 'static,
+{
+    pub fn get(&self, manifold: &Manifold) -> Result<&T, Box<dyn Debug>> {
+        T::ref_from_bytes(&manifold.objects[self.musl_obj].mapping.bytes[self.range.clone()])
+            .map_err(|e| Box::new(e) as Box<dyn Debug>)
+    }
+    pub fn get_mut<'a>(&self, manifold: &'a mut Manifold) -> Result<&'a mut T, Box<dyn Debug>> {
+        let obj = &mut manifold.objects[self.musl_obj];
+
+        let segment = obj
+            .segments
+            .iter()
+            .find(|s| {
+                let s = &manifold.segments[**s];
+                s.offset <= self.range.start && self.range.end <= s.offset + s.mem_size
+            })
+            .ok_or_else(|| Box::new(MuslLocatorError::MutObjectNotFound) as Box<dyn Debug>)?;
+
+        let seg_off = manifold.segments[*segment].offset;
+
+        let mapping = manifold.segments[*segment]
+            .shared
+            .get_mut(SYSV_LOADER_MAPPING)
+            .ok_or_else(|| Box::new(MuslLocatorError::MutObjectNotFound) as Box<dyn Debug>)?;
+
+        T::mut_from_bytes(
+            &mut mapping.bytes_mut()[self.range.start - seg_off..self.range.end - seg_off],
+        )
+        .map_err(|_| Box::new(MuslLocatorError::Conversion) as Box<dyn Debug>)
+    }
+}
 
 fn locate_and_insert_sym<T>(
     manifold: &mut Manifold,
     obj: Handle<Object>,
     name: &CStr,
-    key: ShareMapKey<*mut T>,
+    key: ShareMapKey<MuslObjectIdx<T>>,
 ) where
     T: 'static,
 {
     if let Ok((_, sym)) = manifold.find_symbol(name, obj) {
-        let addr = manifold[obj].mapping.bytes.as_ptr().addr() + sym.st_value as usize;
-
-        log::trace!("Found {} at {addr:#x}", name.to_string_lossy());
-
-        manifold.shared.insert(key, addr as *mut T);
+        log::trace!("Found {} at {:#x}", name.to_string_lossy(), sym.st_value,);
+        manifold.shared.insert(
+            key,
+            MuslObjectIdx {
+                range: sym.st_value as usize..(sym.st_value + sym.st_size) as usize,
+                musl_obj: obj,
+                data: PhantomData,
+            },
+        );
     } else {
         log::warn!("Symbol {} not found", name.to_string_lossy())
     }

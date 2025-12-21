@@ -3,7 +3,6 @@ use goblin::elf::program_header::PT_TLS;
 
 use crate::{
     arena::Handle,
-    dbg,
     elf::{Object, Segment},
     sysv::tls::TlsError,
     Manifold, Module, ShareMapKey,
@@ -48,7 +47,9 @@ impl Module for TlsCollector {
             |v| v.push(segments.clone()),
         );
 
-        let end = dbg!(manifold.shared.get(TLS_MODULES_KEY))
+        let end = manifold
+            .shared
+            .get(TLS_MODULES_KEY)
             .ok_or(TlsError::MissingSharedMapEntry(TLS_MODULES_KEY.key))?
             .len();
 
