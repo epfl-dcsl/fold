@@ -1,7 +1,7 @@
 //! Open and store file into the memory.
 use core::fmt;
 
-use rustix::fd::OwnedFd;
+use rustix::fd::{AsRawFd, OwnedFd};
 use rustix::{fs, mm, path};
 
 const S_IFMT: u32 = 0xf000;
@@ -99,6 +99,16 @@ pub fn map_file(fd: OwnedFd) -> Mapping {
 impl fmt::Debug for Mapping {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Mapping")
+            .field("addr", &self.bytes.as_ptr())
+            .field("len", &self.bytes().len())
+            .field("fd", &self.fd.as_ref().map(|f| f.as_raw_fd()))
+            .finish()
+    }
+}
+
+impl fmt::Debug for MappingMut {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MappingMut")
             .field("addr", &self.bytes.as_ptr())
             .field("len", &self.bytes().len())
             .finish()

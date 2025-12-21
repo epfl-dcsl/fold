@@ -16,3 +16,4 @@ macros = { path = "macros" }
 goblin = { version = "0.7.1", default-features = false, features = ["elf64"] }
 linked_list_allocator = "0.10.5"
 static_assertions = "1.1.0"
+zerocopy = { version = "0.8.31", features = ["derive"] }

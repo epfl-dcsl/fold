@@ -2,6 +2,7 @@ use alloc::boxed::Box;
 use core::fmt::Debug;
 
 use crate::{
+    musl::MUSL_LIBC_KEY,
     sysv::tls::{
         build,
         collection::{TLS_MODULES_KEY, TLS_MODULE_ID_KEY},
@@ -21,6 +22,12 @@ impl Module for TlsAllocator {
     }
 
     fn process_manifold(&mut self, manifold: &mut Manifold) -> Result<(), Box<dyn Debug>> {
+        let libc = manifold.shared.get(MUSL_LIBC_KEY).unwrap().clone();
+        let libc_mut = libc.get_mut(manifold)?;
+        libc_mut.can_do_threads = 1;
+
+        let libc = libc.get(manifold)?;
+
         let modules = manifold.shared.get(TLS_MODULES_KEY);
 
         let tcb = build(
@@ -31,6 +38,7 @@ impl Module for TlsAllocator {
                 .flat_map(|v| v.iter())
                 .map(|m| manifold[m.segment].mem_size)
                 .sum(),
+            libc,
         )?;
 
         let ptr = tcb as *mut ThreadControlBlock as usize;
