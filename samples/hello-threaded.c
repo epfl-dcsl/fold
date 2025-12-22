@@ -6,7 +6,7 @@
 
 #include "count.h"
 
-#define THREAD_COUNT 5
+#define THREAD_COUNT 1
 
 thread_local volatile int id;
 thread_local volatile const int value = 50;
@@ -42,6 +42,9 @@ int main() {
     }
   }
 
-  sleep(1);
+  for (int i = 0; i < THREAD_COUNT; ++i) {
+    thrd_join(threads[i], NULL);
+  }
+
   return 0;
 }

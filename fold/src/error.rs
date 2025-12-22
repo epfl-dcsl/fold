@@ -8,4 +8,5 @@ pub enum FoldError {
     SymbolNotFound(CString),
     OutOfBounds,
     InvalidString,
+    MissingSharedMapEntry(&'static str),
 }

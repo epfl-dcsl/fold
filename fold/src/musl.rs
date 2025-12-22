@@ -66,12 +66,13 @@ impl ThreadControlBlock {
 }
 
 #[derive(Debug, Clone, FromBytes, IntoBytes, Immutable, KnownLayout)]
+#[repr(C)]
 pub struct Libc {
     pub can_do_threads: u8,
     pub threaded: u8,
     pub secure: u8,
     pub need_locks: i8,
-    pub trheads_minus_1: u32,
+    pub threads_minus_1: u32,
     pub auxv: usize,
     pub tls_head: usize,
     pub tls_size: usize,
@@ -82,6 +83,7 @@ pub struct Libc {
 }
 
 #[derive(Debug, Clone, FromBytes, IntoBytes, Immutable, KnownLayout)]
+#[repr(C)]
 pub struct Locale {
     pub cat: [usize; 6],
 }
@@ -112,6 +114,7 @@ where
         T::ref_from_bytes(&manifold.objects[self.musl_obj].mapping.bytes[self.range.clone()])
             .map_err(|e| Box::new(e) as Box<dyn Debug>)
     }
+
     pub fn get_mut<'a>(&self, manifold: &'a mut Manifold) -> Result<&'a mut T, Box<dyn Debug>> {
         let obj = &mut manifold.objects[self.musl_obj];
 
@@ -124,7 +127,7 @@ where
             })
             .ok_or_else(|| Box::new(MuslLocatorError::MutObjectNotFound) as Box<dyn Debug>)?;
 
-        let seg_off = manifold.segments[*segment].offset;
+        let seg_off = manifold.segments[*segment].vaddr;
 
         let mapping = manifold.segments[*segment]
             .shared
