@@ -52,6 +52,13 @@ impl ShareMap {
         self.map.get_mut(key.key).and_then(|v| v.downcast_mut())
     }
 
+    /// Retreives a value from the map. The type `T` of the `key` must match the type of the value in the map.
+    pub fn take<T: 'static>(&mut self, key: ShareMapKey<T>) -> Option<T> {
+        self.map
+            .remove(key.key)
+            .and_then(|v| v.downcast().map(|v| *v).ok())
+    }
+
     pub fn insert_or_update<T: 'static, A: FnOnce() -> T, U: FnOnce(&mut T)>(
         &mut self,
         key: ShareMapKey<T>,

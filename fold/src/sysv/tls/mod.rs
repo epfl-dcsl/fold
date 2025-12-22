@@ -14,12 +14,12 @@ use rustix::{
 use crate::{
     arena::Handle,
     elf::Object,
-    musl::{Libc, RobustList, ThreadControlBlock},
+    musl::{Libc, RobustList, ThreadControlBlock, MUSL_LIBC_KEY},
     sysv::tls::{
-        allocation::TLS_TCB_PTR,
+        allocation::TLS_TCB,
         collection::{TLS_MODULES_KEY, TLS_MODULE_ID_KEY},
     },
-    Manifold,
+    Manifold, ShareMapKey,
 };
 
 pub mod allocation;
@@ -47,6 +47,19 @@ struct TLSModule<'a> {
     size: usize,
 }
 
+#[repr(C)]
+pub struct MuslTlsModule {
+    next: Option<Box<MuslTlsModule>>,
+    image: *const c_void,
+    len: usize,
+    size: usize,
+    align: usize,
+    offset: usize,
+}
+
+pub const MUSL_TLS_MODULES_LL_KEY: ShareMapKey<MuslTlsModule> =
+    ShareMapKey::new("musl-tls-modules");
+
 /// Size of the TCB in musl's implementation.
 const TCB_SIZE: usize = 704;
 const PAGE_SIZE: usize = 1 << 12;
@@ -70,10 +83,10 @@ fn build_dtv(module_count: usize) -> *mut usize {
     dtv.as_mut_ptr()
 }
 
-fn build(
+fn build_tls(
     module_count: usize,
     total_module_size: usize,
-    libc: &Libc,
+    libc: &mut Libc,
 ) -> Result<&'static mut ThreadControlBlock, TlsError> {
     log::info!(
         "Building TLS with tcb_size={} for {module_count} modules. Reserving {total_module_size:#x} bytes for static modules.",
@@ -83,10 +96,12 @@ fn build(
     // Map a random region to store the TCB (and later the TLS image).
     let (tcb, tcb_addr) = unsafe {
         // Ensures that the TCB is aligned on its size. Required for safely accessing its fields.
-        let tcb_align = TCB_SIZE.next_power_of_two();
+        let tcb_align = align_of::<ThreadControlBlock>();
+        let tcb_aligned_size = TCB_SIZE.next_multiple_of(tcb_align);
+        libc.tls_align = tcb_align;
 
         // Compute the page-aligned size that may be required by the whole static TLS block.
-        let static_size = (total_module_size + tcb_align).next_multiple_of(PAGE_SIZE);
+        let static_size = (total_module_size + tcb_aligned_size).next_multiple_of(PAGE_SIZE);
 
         // TODO: NORESERVE may be wrong. The goal is to reserve virtual memory for the static
         // modules, without actually allocating physical memory.
@@ -105,7 +120,7 @@ fn build(
             MapFlags::PRIVATE | MapFlags::FIXED,
         )?;
 
-        let ptr = addr.add(static_size).sub(tcb_align) as *mut ThreadControlBlock;
+        let ptr = addr.add(static_size).sub(tcb_aligned_size) as *mut ThreadControlBlock;
         log::trace!("TCB allocated at {ptr:#x?} (mapped at {addr:#x?})");
 
         (&mut *ptr, ptr)
@@ -164,20 +179,14 @@ fn build(
 }
 
 fn load_from_manifold(
-    manifold: &Manifold,
+    manifold: &mut Manifold,
     obj: Handle<Object>,
     prev_offset: usize,
-) -> Result<usize, TlsError> {
+) -> Result<usize, Box<dyn Debug>> {
     let id = *manifold.objects[obj]
         .shared
         .get(TLS_MODULE_ID_KEY)
         .ok_or(TlsError::MissingSharedMapEntry(TLS_MODULE_ID_KEY.key))?;
-
-    let tls_ptr = *manifold
-        .shared
-        .get(TLS_TCB_PTR)
-        .ok_or(TlsError::MissingSharedMapEntry(TLS_TCB_PTR.key))?;
-    let tcb = unsafe { &mut *(tls_ptr as *mut ThreadControlBlock) };
 
     let modules = manifold
         .shared
@@ -186,15 +195,43 @@ fn load_from_manifold(
 
     let module = modules.get(id - 1).ok_or(TlsError::InvalidModuleId(id))?;
 
-    let segment = &manifold[module.segment];
+    let segment = &manifold.segments[module.segment];
+    let s_msize = segment.mem_size;
+    let s_image = segment.mapping.bytes.as_ptr();
+    let s_fsize = segment.file_size;
+    let s_align = segment.align;
 
-    load_static_module(
-        id,
-        segment.mapping.bytes(),
-        segment.mem_size,
-        tcb,
-        prev_offset,
-    )
+    let tcb = manifold
+        .shared
+        .get_mut(TLS_TCB)
+        .ok_or(TlsError::MissingSharedMapEntry(TLS_TCB.key))?;
+    let addr = load_static_module(id, segment.mapping.bytes(), s_msize, tcb, prev_offset)?;
+
+    let libc = manifold
+        .shared
+        .get(MUSL_LIBC_KEY)
+        .ok_or(TlsError::MissingSharedMapEntry(MUSL_LIBC_KEY.key))?
+        .clone();
+    let libc_mut = libc.get_mut(manifold)?;
+    libc_mut.tls_size += s_msize;
+    let offset = libc_mut.tls_size;
+
+    let head = manifold.shared.take(MUSL_TLS_MODULES_LL_KEY);
+    let new_head = MuslTlsModule {
+        next: head.map(Box::new),
+        image: s_image as *const c_void,
+        len: s_fsize,
+        size: s_msize,
+        align: s_align,
+        offset,
+    };
+
+    manifold.shared.insert(MUSL_TLS_MODULES_LL_KEY, new_head);
+
+    libc.get_mut(manifold)?.tls_head =
+        manifold.shared.get(MUSL_TLS_MODULES_LL_KEY).unwrap() as *const MuslTlsModule as usize;
+
+    Ok(addr)
 }
 
 fn load_static_module(
