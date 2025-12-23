@@ -45,11 +45,11 @@ impl Module for TlsRelocator {
         section: Handle<Section>,
         manifold: &mut Manifold,
     ) -> Result<(), Box<dyn Debug>> {
-        let tp = *manifold
-            .shared
-            .get_mut(TLS_TCB)
-            .ok_or(TlsError::MissingSharedMapEntry(TLS_TCB.key))?
-            as *mut ThreadControlBlock as usize;
+        let Some(tp) = manifold.shared.get_mut(TLS_TCB) else {
+            log::trace!("TLS not allocated, skipping related relocs");
+            return Ok(());
+        };
+        let tp = *tp as *mut ThreadControlBlock as usize;
         let section = &manifold[section];
         let mut tls_ptr = *manifold
             .shared
