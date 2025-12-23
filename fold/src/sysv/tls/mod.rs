@@ -93,16 +93,17 @@ fn build_tls(
         TCB_SIZE
     );
 
+    // Ensures that the TCB is aligned on its size. Required for safely accessing its fields.
+    let tcb_align = align_of::<ThreadControlBlock>();
+    let tcb_aligned_size = TCB_SIZE.next_multiple_of(tcb_align);
+    libc.tls_align = tcb_align;
+    libc.tls_size = TCB_SIZE;
+
+    // Compute the page-aligned size that may be required by the whole static TLS block.
+    let static_size = (total_module_size + tcb_aligned_size).next_multiple_of(PAGE_SIZE);
+
     // Map a random region to store the TCB (and later the TLS image).
     let (tcb, tcb_addr) = unsafe {
-        // Ensures that the TCB is aligned on its size. Required for safely accessing its fields.
-        let tcb_align = align_of::<ThreadControlBlock>();
-        let tcb_aligned_size = TCB_SIZE.next_multiple_of(tcb_align);
-        libc.tls_align = tcb_align;
-
-        // Compute the page-aligned size that may be required by the whole static TLS block.
-        let static_size = (total_module_size + tcb_aligned_size).next_multiple_of(PAGE_SIZE);
-
         // TODO: NORESERVE may be wrong. The goal is to reserve virtual memory for the static
         // modules, without actually allocating physical memory.
         let addr = mmap_anonymous(
@@ -214,7 +215,7 @@ fn load_from_manifold(
         .clone();
     let libc_mut = libc.get_mut(manifold)?;
     libc_mut.tls_size += s_msize;
-    let offset = libc_mut.tls_size;
+    let offset = libc_mut.tls_size - TCB_SIZE;
 
     let head = manifold.shared.take(MUSL_TLS_MODULES_LL_KEY);
     let new_head = MuslTlsModule {
