@@ -32,7 +32,10 @@ impl Module for TlsAllocator {
             .map(|m| manifold[m.segment].mem_size)
             .sum();
 
-        let libc = manifold.shared.get(MUSL_LIBC_KEY).unwrap().clone();
+        let Some(libc) = manifold.shared.get(MUSL_LIBC_KEY).cloned() else {
+            log::warn!("MUSL not found, skipping TLS allocation");
+            return Ok(());
+        };
         let libc_mut = libc.get_mut(manifold)?;
         libc_mut.can_do_threads = 1;
         libc_mut.tls_cnt = 1;
