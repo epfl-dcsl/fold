@@ -1,6 +1,6 @@
 #import "@preview/fletcher:0.5.8" as fletcher: diagram, edge, node
 #import fletcher.shapes: brace, bracket
-#import "code.typ": code
+#import "../common/code.typ": code
 
 #align(center + top)[
   #grid(
@@ -38,7 +38,7 @@
       [Faculty:], [School of Computer and Communication Sciences, EPFL],
     )]
 
-  #image("EPFL logo.png", height: 5em)
+  #image("../common/EPFL logo.png", height: 5em)
 ]
 
 
@@ -442,7 +442,7 @@ Note that for now, the loaded segments are all mapped with read & write permissi
 
 The thread-local storage is a part of memory referenced by the `fs` register and containing data related to the current thread, such as the thread control block (TCB) and some other data defined in the ELF. The specification of thread-local storage for ELF files@tls-spec gives the following schema for the memory layout of TLS:
 
-#figure(image("tls-layout.png"), caption: [Thread-local storage memory layout (TLS specification@tls-spec, page 6)])
+#figure(image("../common/tls-layout.png"), caption: [Thread-local storage memory layout (TLS specification@tls-spec, page 6)])
 
 The block including the TCB can simply be mmapped after computing the list of offsets to store and then must be initialized with the said offsets and the TCB struct@tcb-struct. As of now, the handling of the dynamic thread vector (`dtv`) and dynamic modules are not implemented in Fold as they are not required for the sample programs that were targeted, but a more complete implementation would require this to be completed (@future-work).
 
@@ -465,11 +465,7 @@ Here are some examples for x86 systems@system-v:
 
   #table(
     columns: 3,
-    table.header(
-      [Name],
-      [Value],
-      [Calculation],
-    ),
+    table.header([Name], [Value], [Calculation]),
 
     [`R_X86_64_64`], [1], [S + A],
     [`R_X86_64_JUMP_SLOT`], [7], [S],
