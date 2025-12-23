@@ -9,7 +9,7 @@ run TARGET:
 
 build:
 	cargo +nightly build -p fold --target {{target}} -Z build-std=core,alloc
-	@just --justfile samples/justfile
+	@make -C samples
 	@just --justfile examples/justfile
 
 

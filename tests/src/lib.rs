@@ -5,7 +5,7 @@ mod tests {
     #[test]
     fn hello() {
         let output = Command::new("../target/x86_64-unknown-linux-none/debug/fold")
-            .arg("../samples/hello")
+            .arg("../samples/hello-asm")
             .output()
             .expect("Failed to execute process");
         assert!(String::from_utf8_lossy(&output.stdout).contains("hi there"));
@@ -34,7 +34,7 @@ mod tests {
         let output = Command::new("../samples/hello-args")
             .output()
             .expect("Failed to execute process");
-        assert!(String::from_utf8_lossy(&output.stdout).contains("Missing name :/"));
+        assert!(dbg!(String::from_utf8_lossy(&output.stdout)).contains("Missing name :/"));
     }
 
     #[test]
