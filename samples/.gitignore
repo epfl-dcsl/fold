@@ -1,10 +1,10 @@
 *.o
 *.so
 
+hello-asm
 hello-dl
 hello-mov-pie
 hello-pie
-hello
 hello-c
 hello-args
 hello-bss

@@ -107,10 +107,16 @@ impl Fold {
             };
             fold.initial_share_map.insert(
                 SYSV_COLLECTOR_SEARCH_PATHS_KEY,
-                [cwd, "musl/lib", "/lib", "/lib64", "/usr/lib/"]
-                    .into_iter()
-                    .map(|s| s.to_owned())
-                    .collect(),
+                [
+                    cwd,
+                    concat!(env!("CARGO_MANIFEST_DIR"), "/../musl/lib"),
+                    "/lib",
+                    "/lib64",
+                    "/usr/lib/",
+                ]
+                .into_iter()
+                .map(|s| s.to_owned())
+                .collect(),
             );
         }
 
