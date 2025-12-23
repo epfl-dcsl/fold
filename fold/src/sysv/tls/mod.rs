@@ -47,6 +47,7 @@ struct TLSModule<'a> {
     size: usize,
 }
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct MuslTlsModule {
     next: Option<Box<MuslTlsModule>>,
@@ -217,9 +218,8 @@ fn load_from_manifold(
     libc_mut.tls_size += s_msize;
     let offset = libc_mut.tls_size - TCB_SIZE;
 
-    let head = manifold.shared.take(MUSL_TLS_MODULES_LL_KEY);
-    let new_head = MuslTlsModule {
-        next: head.map(Box::new),
+    let tail = MuslTlsModule {
+        next: None,
         image: s_image as *const c_void,
         len: s_fsize,
         size: s_msize,
@@ -227,7 +227,15 @@ fn load_from_manifold(
         offset,
     };
 
-    manifold.shared.insert(MUSL_TLS_MODULES_LL_KEY, new_head);
+    if let Some(mut node) = manifold.shared.get_mut(MUSL_TLS_MODULES_LL_KEY) {
+        while node.next.is_some() {
+            node = node.next.as_mut().unwrap();
+        }
+
+        node.next = Some(Box::new(tail))
+    } else {
+        manifold.shared.insert(MUSL_TLS_MODULES_LL_KEY, tail);
+    }
 
     libc.get_mut(manifold)?.tls_head =
         manifold.shared.get(MUSL_TLS_MODULES_LL_KEY).unwrap() as *const MuslTlsModule as usize;

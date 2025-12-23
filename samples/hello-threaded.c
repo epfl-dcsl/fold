@@ -18,7 +18,7 @@ int procedure(void *name) {
   printf("[%d] TLS contain id=%d and value=%d\n", gettid(), id, value);
 
   count++;
-  printf("[%d] External count is %d (after increment)\n", gettid(), count);
+  printf("[%d] Local count is %d (after increment)\n", gettid(), count);
 
   return 0;
 }
