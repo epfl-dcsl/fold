@@ -10,7 +10,10 @@ use alloc::boxed::Box;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 use crate::{
-    arena::Handle, elf::Object, sysv::loader::SYSV_LOADER_MAPPING, Manifold, Module, ShareMapKey,
+    arena::{Arena, Handle},
+    elf::{Object, Segment},
+    sysv::loader::SYSV_LOADER_MAPPING,
+    Manifold, Module, ShareMapKey,
 };
 
 pub type Sysinfo = usize;
@@ -102,7 +105,7 @@ pub const MUSL_SYSINFO_KEY: ShareMapKey<MuslObjectIdx<Sysinfo>> = ShareMapKey::n
 #[derive(Debug, Clone)]
 pub struct MuslObjectIdx<T> {
     range: Range<usize>,
-    musl_obj: Handle<Object>,
+    segment: Handle<Segment>,
     data: PhantomData<T>,
 }
 
@@ -110,34 +113,22 @@ impl<T> MuslObjectIdx<T>
 where
     T: FromBytes + KnownLayout + Immutable + IntoBytes + 'static,
 {
-    pub fn get(&self, manifold: &Manifold) -> Result<&T, Box<dyn Debug>> {
-        T::ref_from_bytes(&manifold.objects[self.musl_obj].mapping.bytes[self.range.clone()])
+    pub fn get(&self, segments: &Arena<Segment>) -> Result<&T, Box<dyn Debug>> {
+        T::ref_from_bytes(&segments[self.segment].mapping.bytes[self.range.clone()])
             .map_err(|e| Box::new(e) as Box<dyn Debug>)
     }
 
-    pub fn get_mut<'a>(&self, manifold: &'a mut Manifold) -> Result<&'a mut T, Box<dyn Debug>> {
-        let obj = &mut manifold.objects[self.musl_obj];
-
-        let segment = obj
-            .segments
-            .iter()
-            .find(|s| {
-                let s = &manifold.segments[**s];
-                s.offset <= self.range.start && self.range.end <= s.offset + s.mem_size
-            })
-            .ok_or_else(|| Box::new(MuslLocatorError::MutObjectNotFound) as Box<dyn Debug>)?;
-
-        let seg_off = manifold.segments[*segment].vaddr;
-
-        let mapping = manifold.segments[*segment]
+    pub fn get_mut<'a>(
+        &self,
+        segments: &'a mut Arena<Segment>,
+    ) -> Result<&'a mut T, Box<dyn Debug>> {
+        let mapping = segments[self.segment]
             .shared
             .get_mut(SYSV_LOADER_MAPPING)
             .ok_or_else(|| Box::new(MuslLocatorError::MutObjectNotFound) as Box<dyn Debug>)?;
 
-        T::mut_from_bytes(
-            &mut mapping.bytes_mut()[self.range.start - seg_off..self.range.end - seg_off],
-        )
-        .map_err(|_| Box::new(MuslLocatorError::Conversion) as Box<dyn Debug>)
+        T::mut_from_bytes(&mut mapping.bytes_mut()[self.range.clone()])
+            .map_err(|_| Box::new(MuslLocatorError::Conversion) as Box<dyn Debug>)
     }
 }
 
@@ -151,11 +142,33 @@ fn locate_and_insert_sym<T>(
 {
     if let Ok((_, sym)) = manifold.find_symbol(name, obj) {
         log::trace!("Found {} at {:#x}", name.to_string_lossy(), sym.st_value,);
+
+        let Some(hseg) = manifold[obj]
+            .segments
+            .iter()
+            .find(|s| {
+                let seg = &manifold[**s];
+
+                seg.vaddr <= sym.st_value as usize
+                    && (sym.st_value + sym.st_size) as usize <= seg.vaddr + seg.mem_size
+            })
+            .copied()
+        else {
+            log::warn!(
+                "Symbol {} found but outside of all the object's segments",
+                name.to_string_lossy()
+            );
+            return;
+        };
+
+        let seg = &manifold[hseg];
+
         manifold.shared.insert(
             key,
             MuslObjectIdx {
-                range: sym.st_value as usize..(sym.st_value + sym.st_size) as usize,
-                musl_obj: obj,
+                range: sym.st_value as usize - seg.vaddr
+                    ..(sym.st_value + sym.st_size) as usize - seg.vaddr,
+                segment: hseg,
                 data: PhantomData,
             },
         );
