@@ -56,7 +56,7 @@ doc:
 
 clean:
 	cargo clean
-	@just --justfile samples/justfile clean
+	make -C samples/justfile clean
 
 # The following line gives highlighting on vim
 # vim: set ft=make :

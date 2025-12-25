@@ -27,7 +27,7 @@ use crate::sysv::start::SysvStart;
 use crate::sysv::tls::allocation::TlsAllocator;
 use crate::sysv::tls::collection::TlsCollector;
 use crate::sysv::tls::relocation::TlsRelocator;
-use crate::{cli, file, ShareMap};
+use crate::{cli, file, ShareMap, ShareMapKey};
 
 type ModuleRef = Box<dyn Module>;
 
@@ -52,6 +52,8 @@ struct Phase {
     module: ModuleRef,
     filter: Filter,
 }
+
+pub const INITIAL_ELF_KEY: ShareMapKey<Handle<Object>> = ShareMapKey::new("initial-elf");
 
 impl Fold {
     /// Creates an empty [`Fold`] from the execution context (`env`) and the name of the linker's binary (`linker_name`).
@@ -83,7 +85,7 @@ impl Fold {
             )
             .register("load", SysvLoader, Filter::segment_type(PT_LOAD))
             .register("musl-locator", MuslLocator, Filter::manifold())
-            .register("tls-collector", TlsCollector, Filter::any_object())
+            .register("tls-collector", TlsCollector::new(), Filter::any_object())
             .register("tls-allocator", TlsAllocator, Filter::manifold())
             .register(
                 "tls-relocator",
@@ -225,7 +227,9 @@ impl Fold {
         log::info!("Target: {target:?}");
         let file_fd = file::open_file_ro(target.to_bytes()).expect("Target is not a file");
         let file = file::map_file(file_fd);
-        manifold.add_elf_file(file, target.to_owned());
+
+        let idx = manifold.add_elf_file(file, target.to_owned());
+        manifold.shared.insert(INITIAL_ELF_KEY, idx);
 
         // Execute each phase
         for phase in &mut self.phases {
