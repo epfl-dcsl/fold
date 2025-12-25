@@ -17,7 +17,7 @@ TARGETS_HOLDERS := SYSV TRAMP SECCOMP SECCOMP_SYM
 TARGETS := $(foreach cat,$(TARGETS_HOLDERS), $($(cat)))
 
 CC := musl-gcc
-CFLAGS += -fPIC
+CFLAGS += -fPIC -g
 
 all: $(TARGETS)
 	$(foreach cat,$(TARGETS_HOLDERS), $(foreach target, $($(cat)), patchelf --set-interpreter $($(cat)_LOADER) $(target);))
