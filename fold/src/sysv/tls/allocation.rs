@@ -36,7 +36,7 @@ impl Module for TlsAllocator {
             log::warn!("MUSL not found, skipping TLS allocation");
             return Ok(());
         };
-        let libc_mut = libc.get_mut(manifold)?;
+        let libc_mut = libc.get_mut(&mut manifold.segments)?;
         libc_mut.can_do_threads = 1;
         libc_mut.tls_cnt = 1;
 

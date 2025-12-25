@@ -214,7 +214,7 @@ fn load_from_manifold(
         .get(MUSL_LIBC_KEY)
         .ok_or(TlsError::MissingSharedMapEntry(MUSL_LIBC_KEY.key))?
         .clone();
-    let libc_mut = libc.get_mut(manifold)?;
+    let libc_mut = libc.get_mut(&mut manifold.segments)?;
     libc_mut.tls_size += s_msize;
     let offset = libc_mut.tls_size - TCB_SIZE;
 
@@ -237,7 +237,7 @@ fn load_from_manifold(
         manifold.shared.insert(MUSL_TLS_MODULES_LL_KEY, tail);
     }
 
-    libc.get_mut(manifold)?.tls_head =
+    libc.get_mut(&mut manifold.segments)?.tls_head =
         manifold.shared.get(MUSL_TLS_MODULES_LL_KEY).unwrap() as *const MuslTlsModule as usize;
 
     Ok(addr)
