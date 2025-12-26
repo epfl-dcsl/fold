@@ -3,7 +3,7 @@ EXAMPLES_DIR ?= $(CURDIR)/../examples/target/x86_64-unknown-linux-none/debug/
 
 # Targets are split accross multiple categories, depending on the linker that they need.
 # The linker must be passed in `$(CATEGORY)_LOADER`.
-SYSV :=  hello-asm hello-pie hello-mov-pie hello-dl hello-c hello-args hello-bss hello-env hello-math hello-threaded hello-threaded-pic
+SYSV :=  hello-asm hello-pie hello-mov-pie hello-dl hello-c hello-args hello-bss hello-env hello-math hello-threaded hello-threaded-pic hello-threaded-ext
 SYSV_LOADER := $(FOLD)
 TRAMP := trampoline-print
 TRAMP_LOADER := $(EXAMPLES_DIR)/trampoline-linker
@@ -28,6 +28,7 @@ libmsg.so: msg.o
 hello-dl: libmsg.so
 hello-threaded: libcount.so
 hello-threaded-pic: libcount-pic.so
+hello-threaded-ext: libcount.so libcount-ext.so
 trampoline-print: hello-c.c
 	$(CC) $(CFLAGS) $^ -o $@
 seccomp-sym-hello-c: hello-c.c
