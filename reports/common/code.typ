@@ -23,7 +23,7 @@
 
 #let extract-identifier(code, ident, type: "\w+") = {
   let i = 0
-  while i < code.len() and code.at(i).match(regex(type + "\s+" + ident + "\b")) == none { i += 1 }
+  while i < code.len() and code.at(i).match(regex(type + "\s*" + ident + "\b")) == none { i += 1 }
   let start = i
   assert(i != code.len(), message: "Identifier " + ident + " not found")
 

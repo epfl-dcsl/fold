@@ -28,9 +28,14 @@ To have full Intellisense and linter support, we recommend to use VSCode with th
 {
   "rust-analyzer.linkedProjects": [
     "${workspaceFolder}/Cargo.toml",
-    "${workspaceFolder}/tests/Cargo.toml"
+    "${workspaceFolder}/tests/Cargo.toml",
+    "${workspaceFolder}/examples/emulator-linker/Cargo.toml",
+    "${workspaceFolder}/examples/seccomp-linker/Cargo.toml",
+    "${workspaceFolder}/examples/seccomp-sym-linker/Cargo.toml",
+    "${workspaceFolder}/examples/trampoline-linker/Cargo.toml"
   ]
 }
+
 ```
 
 ## Examples
