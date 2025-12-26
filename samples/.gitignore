@@ -12,6 +12,7 @@ hello-env
 hello-math
 hello-threaded
 hello-threaded-pic
+hello-threaded-ext
 seccomp-allowed
 seccomp-forbidden
 hello-riscv
