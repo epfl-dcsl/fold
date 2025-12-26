@@ -1,20 +1,16 @@
-use core::{
-    ffi::{c_void, CStr},
-    fmt::Debug,
-    marker::PhantomData,
-    ops::Range,
-    ptr::{read_unaligned, slice_from_raw_parts_mut},
-};
-
 use alloc::boxed::Box;
+use core::ffi::{c_void, CStr};
+use core::fmt::Debug;
+use core::marker::PhantomData;
+use core::ops::Range;
+use core::ptr::{read_unaligned, slice_from_raw_parts_mut};
+
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-use crate::{
-    arena::{Arena, Handle},
-    elf::{Object, Segment},
-    sysv::loader::SYSV_LOADER_MAPPING,
-    Manifold, Module, ShareMapKey,
-};
+use crate::arena::{Arena, Handle};
+use crate::elf::{Object, Segment};
+use crate::sysv::loader::SYSV_LOADER_MAPPING;
+use crate::{Manifold, Module, ShareMapKey};
 
 pub type Sysinfo = usize;
 
