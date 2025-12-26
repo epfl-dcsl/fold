@@ -2,6 +2,4 @@
 
 thread_local volatile int count = 0;
 
-int incr() {
-    return count++;
-}
+int incr() { return ++count; }
