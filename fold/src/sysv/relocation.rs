@@ -3,12 +3,12 @@ use alloc::ffi::CString;
 use alloc::vec::Vec;
 use core::cell::LazyCell;
 use core::str::FromStr;
-use log::info;
 
 use goblin::elf::reloc::{R_X86_64_64, R_X86_64_COPY, R_X86_64_JUMP_SLOT, R_X86_64_RELATIVE, *};
 use goblin::elf::section_header::SHT_RELA;
 use goblin::elf::sym::STB_WEAK;
 use goblin::elf64::reloc::{self, Rela};
+use log::info;
 
 use crate::arena::Handle;
 use crate::elf::ElfItemIterator;
