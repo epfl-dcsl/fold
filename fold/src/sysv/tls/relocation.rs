@@ -69,12 +69,11 @@ impl Module for TlsRelocator {
 
             let orig = LazyCell::new(|| manifold.find_symbol(*name, section.obj).unwrap());
 
-            let tls_offset = LazyCell::new(|| {
+            let tls_module = LazyCell::new(|| {
                 manifold[orig.0.obj]
                     .shared
                     .get(TLS_MODULE_KEY)
                     .expect("TLS reloc found for object with no TLS module")
-                    .tls_offset
             });
 
             log::info!(
@@ -85,19 +84,29 @@ impl Module for TlsRelocator {
 
             match r#type {
                 R_X86_64_TPOFF32 => {
-                    let offset = (tls_offset.wrapping_neg() + orig.1.st_value as usize) as u32;
+                    let offset =
+                        (tls_module.tls_offset.wrapping_neg() + orig.1.st_value as usize) as u32;
                     unsafe {
                         write_unaligned(addr as *mut u32, offset);
                     }
                 }
                 R_X86_64_TPOFF64 => {
-                    let offset = (tls_offset.wrapping_neg() + orig.1.st_value as usize) as u64;
+                    let offset =
+                        (tls_module.tls_offset.wrapping_neg() + orig.1.st_value as usize) as u64;
                     unsafe {
                         write_unaligned(addr as *mut u64, offset);
                     }
                 }
-                R_X86_64_DTPMOD64 | R_X86_64_DTPOFF32 | R_X86_64_DTPOFF64 | R_X86_64_GOTTPOFF
-                | R_X86_64_TLSGD | R_X86_64_TLSLD => {}
+                R_X86_64_DTPMOD64 => unsafe {
+                    write_unaligned(addr as *mut u64, tls_module.id as u64);
+                },
+                R_X86_64_DTPOFF32 => unsafe {
+                    write_unaligned(addr as *mut u32, orig.1.st_value as u32);
+                },
+                R_X86_64_DTPOFF64 => unsafe {
+                    write_unaligned(addr as *mut u64, orig.1.st_value);
+                },
+                R_X86_64_GOTTPOFF | R_X86_64_TLSGD | R_X86_64_TLSLD => todo!(),
                 _ => unreachable!(),
             }
         }
