@@ -125,7 +125,7 @@ Knowing the fundamentals of Thread Local Storage, let's now take a look at the i
 
 === Module allocation<sect-bg-musl-alloc>
 
-The first observation to be made is that Musl provides itself an implementation for `__tls_get_addr` (@musl-tls-get-addr) which simply indexes the `dtv` array, meaning that all TLS modules are statically allocated. This greatly simplifies to process of allocating the TLS modules, but also increases the overhead of loading the ELF and creating new threads.
+The first observation to be made is that Musl provides itself an implementation for `__tls_get_addr` (@musl-tls-get-addr) which simply indexes the `dtv` array, meaning that all TLS modules are statically allocated. This greatly simplifies to process of allocating the TLS modules, but also increases the overhead of loading the ELF and creating new threads. See also @sect-disc-all-static.
 
 #code(
   "musl/src/thread/__tls_get_addr.c",
@@ -263,7 +263,7 @@ Now let's look into the TLS-related modules. The role of `TlsCollector` is to id
 
 TODO: maybe split into TlsAllocation and TlsMusl
 
-This module is the heart of the implementation of TLS. Its role is to allocate and initialize the memory region that will store the TCB, DTV and all the modules (following Musl's implementation, all modules are statically allocated). It begins by allocating a new memory region using `mmap`, then fills it according to @fig-main-tls-region. It also updates the `libc` object with all the data related to TLS; the `tls_head` list is constructed by this module and stored in the shared map to be exposed to the runtime.
+This module is the heart of the implementation of TLS. Its role is to allocate and initialize the memory region that will store the TCB, DTV and all the modules (following Musl's implementation, all modules are statically allocated). It begins by allocating a new memory region using `mmap`, then fills it according to @fig-main-tls-region. It also updates the `libc` object with all the data related to TLS; the `tls_head` list is constructed by this module and stored in the shared map to be exposed to the runtime (see also @sect-future-work).
 
 #figure(
   diagram(
@@ -321,9 +321,50 @@ The relocations handled by `TlsRelocator` are:
 - `R_X86_64_TPOFF{32,64}`: Offset of the symbol relative to the thread-pointer, i.e. `tlsoffset + sym.value`.
 - `R_X86_64_DTPMOD64`: Module ID of the TLS module containing the symbol.
 - `R_X86_64_DTPOFF{32,64}`: Offset of the symbol within its TLS module, i.e. `sym.value`.
-- `R_X86_64_GOTTPOFF`, `R_X86_64_TLSGD` and `R_X86_64_TLSLD` are left unimplemented for now as they require proper handling of the GOT, which is not yet implemented in Fold.
+- `R_X86_64_GOTTPOFF`, `R_X86_64_TLSGD` and `R_X86_64_TLSLD` are left unimplemented for now as they require proper handling of the GOT, which is not yet implemented in Fold (see @sect-disc-got)
 
-= State of the project
+= Discussions<sect-disc>
+
+== All static<sect-disc-all-static>
+
+As discussed in @sect-bg-musl-alloc, Musl allocates all TLS modules statically upon program loading/thread start. TLS specification allowed dynamic allocation such that if a thread does not access a TLS module, then it would never get loaded for that specific thread. This would avoid allocating the memory, copying the `.tdata` section and zeroing out the `.tbss` section, hence reducing both memory usage and thread startup time cost.
+
+However, when taking a closer look at the memory size of TLS modules (@add-tls-module-sizes), it is clear that the optimization gained by dynamic allocation would likely be negligeable or could even backfire. Due to the small size of the modules, all those possibly used by an executable would likely fit into a single page with the TCB, hence rendering null the memory optimization side. For the time performance, we must first observe that allowing dynamic allocation shifts the cost from $O("tls_size")$ to $O(\#"tls_accesses")$ since it requires a check during each calls to `__tls_get_addr`. GNU's libc improves this by marking the check as likely to yield "allocated" for branch prediction, but one may still wonder whether there is an actual gain with dynamic allocation. This is however no the focus of this work.
+
+== Global Offset Table relocations<sect-disc-got>
+
+As said in @sect-impl-reloc, the relocations using the Global Offset Table (GOT) are not implemented as Fold itself does not implement proper handling of the GOT. However, when I checked the shared object present in my system, none used this relocation. This means all these librairies (and thus probably GCC itself) instead creates the structure given to `__tls_get_addr` in place instead of inside the GOT, which is technically not compliant with the specification. I was able to observe the same on several alpine-based docker image, i.e. with librairies built with Musl's compiler.
+
+The command in @fig-count-tls-reloc prints the number of `R_X86_64_GOTTPOFF` occurring in all the shared object of the system. Running it on the docker images `alpine`, `alpine/ansible`, `node:alpine` and `postgresql:alpine` yields 0 occurrences.
+
+#figure(
+  align(left, raw(
+    "find / -type f -name '*.so' -exec readelf -rW {} \; \
+    | grep R_X86_64_GOTTPOFF \
+    | wc -l",
+    lang: "bash",
+  )),
+  caption: [Count `R_X86_64_GOTTPOFF` in all the shared objects],
+  kind: "code",
+  supplement: "Code snippet",
+)<fig-count-tls-reloc>
+
+I was not able to find a source for why this relocation was removed, but we can observe that in the case of `libcount-pic.so` (see @sect-state-of-proj), the structure targeted by the `R_X86_64_DTP*` relocation is located in the GOT, so it may be that as modern compilers generate themselves the GOT for the shared object, the relocations to allocate/get the address of the GOT are not necessary anymore.
+
+= State of the project<sect-state-of-proj>
+
+On top of all the existing samples (that still execute correctly), some new samples where added to the project to test the different ways the loader has to interact with the TLS:
+- `hello-threaded` is a standalone executable with two static thread-local variables, one initialized (`value `) and one left uninitialized (`id`). The executable prints these values, then assigns its id to `id` and print it again. The expected output is to have `value` always output as its value set in the code, while `id` should first be 0 then hold the thread's id. On top of that, a `count` thread-local variable defined by another shared object (`libcount.so`) incremented and printed. This is ran on 5 different threads.
+- `hello-threaded-pic` is the same as `hello-threaded`, expect that `count` is now accessed through an `incr()` function defined by the same object (now `libcount-pic.so`).
+- `hello-threaded-ext` is similar to `hello-threaded-pic` except that `incr()` is defined in yet another object (`libcount-ext.so`).
+
+All these examples run without any issues, accessing the different values through various means.
+
+= Future work<sect-future-work>
+
+A lot of work is still needed for Fold and its default module chain to be usable in a real environment. From the initial project@fold, the processing of jump slot relocation is still the outstanding one, along with the other missing relocations and optimizations proposed.
+
+On top of that, while working on implementing TLS, I noticed that a pattern that may appear in the development of new modules is the need to share some data (let it be actual code, information or any other memory content) with the runtime. Currently this appears when allocating the stack of the program in `SysvStart` and the `TlsModule` linked list in `TlsAlloc` (@sect-impl-alloc), which are respectively stored in a `Vec<u8>` and the shared map of the manifold. Especially for the `TlsModule` linked list, this means that if the entry was to be moved for any reason, it would likely cause a crash once the runtime needs to access that struct. It could be useful to have an object designed to persist some memory once the control is handed over to the runtime. It should also be coupled with an allocator to allow using the existing primitives in Rust such as `Box` or `Vec`.
 
 #pagebreak()
 
@@ -346,3 +387,25 @@ The relocations handled by `TlsRelocator` are:
   size: 11.5pt,
 )
 
+= TLS module sizes<add-tls-module-sizes>
+
+@fig-tls-sizes shows the size of the TLS modules of all the shared objects present in the `alpine/ansible:2.20.0` docker image. It was obtained by running the script in @fig-tls-get-sizes in the image. The average for the size in the file (*F*) and the size in memory (*M*) is respectively 0.72 and	2.16 bytes, both means are at 0.
+
+#show figure: set block(breakable: true)
+#figure(text(table(
+  columns: 6,
+  [*Object*], [*F*], [*M*], [*Object*], [*F*], [*M*],
+  ..csv("tls.csv").map(s => (s.at(0).split("/").last().replace("-linux-musl", ""), s.slice(1))).sorted(key: it => it.at(0)).flatten(),
+), size: 10pt), caption: [TLS module sizes in `alpine/ansible:2.20.0`])<fig-tls-sizes>,
+#show figure: set block(breakable: false)
+
+
+#figure(
+  align(left, raw(
+    read("tls-size.sh"),
+    lang: "bash",
+  )),
+  caption: [Measure TLS module sizes of all shared object in the system],
+  kind: "code",
+  supplement: "Code snippet",
+)<fig-tls-get-sizes>
