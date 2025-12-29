@@ -14,6 +14,7 @@ thread_local volatile const int value = 50;
 int procedure(void *name) {
   printf("[%d] Hello from %s\n", gettid(), (const char *)name);
 
+  printf("[%d] TLS contain id=%d and value=%d\n", gettid(), id, value);
   id = gettid();
   printf("[%d] TLS contain id=%d and value=%d\n", gettid(), id, value);
 
