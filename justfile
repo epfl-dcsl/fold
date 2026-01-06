@@ -1,3 +1,4 @@
+root_dir := justfile_directory()
 target := "fold/x86_64-unknown-linux-none.json"
 
 # Print list of commands
@@ -44,7 +45,7 @@ fmt:
 	cargo fmt -p tests
 
 report:
-	typst compile report/report.typ -f pdf --root ..
+	sh reports/render.sh
 
 doc-open:
 	@just report
