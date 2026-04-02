@@ -11,7 +11,7 @@
 
     pad(y: 1.5em, [by]),
 
-    text(size: 1.5em)[Ludovic Mermod],
+    text(size: 1.5em)[Lucie Mermod],
     text(size: 1.5em)[Noé Terrier],
   )]
 
@@ -44,7 +44,7 @@
 
 #pagebreak()
 
-#set page(header: align(right, [Ludovic Mermod & Noé Terrier]))
+#set page(header: align(right, [Lucie Mermod & Noé Terrier]))
 #set heading(numbering: "1.1")
 #set text(size: 12pt)
 #set par(justify: true)
