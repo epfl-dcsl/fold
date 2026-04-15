@@ -508,6 +508,7 @@ To implement this, we can simply create a new Fold module, which performs a glob
 #code(
   "examples/seccomp-linker/src/seccomp.rs",
   ident: "Module",
+  type: "impl",
   caption: [Module implementation of `Seccomp`],
 )<seccomp-src>
 
@@ -531,6 +532,7 @@ In order to do the scan, and to illustrate communication between modules, we cho
 #code(
   "examples/seccomp-sym-linker/src/syscall_collect.rs",
   ident: "Module",
+  type: "impl",
   caption: [Module implementation for `SysCollect`],
 )<seccomp-sys-src>
 
@@ -560,6 +562,7 @@ For each hook it wants to install, the linker creates two function, the hook its
 #code(
   "examples/trampoline-linker/tramp-macros/src/lib.rs",
   ident: "#trampoline_ident",
+  type: "fn",
   caption: [Trampoline generation code],
 )<trampoline-macro>
 
